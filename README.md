@@ -1,16 +1,19 @@
 # 🛡️ LastMessage — Privacy-First Offline Dead Man's Switch for Android
 
-**LastMessage** is an offline, privacy-first "Dead Man's Switch" mobile application built for Android. It periodically monitors user check-in confirmations ("I am alive"). If the user fails to check in within the configured countdown timer interval (12h, 24h, 48h, 72h, 7 days), the application autonomously triggers emergency dispatch via native SMS and/or TLS encrypted SMTP Email with image attachments — completely without relying on proprietary cloud services or external backends.
+**LastMessage** is an offline, privacy-first "Dead Man's Switch" mobile application built for Android with full bilingual support (Deutsch 🇩🇪 / English 🇬🇧). It periodically monitors user check-in confirmations ("I am alive"). If the user fails to check in within the configured countdown timer interval (12h, 24h, 48h, 72h, 7 days), the application autonomously triggers emergency dispatch via native SMS and/or TLS encrypted SMTP Email with image attachments — completely without relying on proprietary cloud services or external backends.
 
 ---
 
-## ✨ Features
+## ✨ Key Features
+
+- **🌐 Bilingual Language Switcher (Deutsch 🇩🇪 / English 🇬🇧):**  
+  Easily switch the entire application UI (labels, status badges, diagnostic advice, toast messages) between German and English in the settings screen.
 
 - **🔒 100% Offline & Encrypted Storage:**  
   All sensitive credentials (SMTP passwords, recipient phone numbers, email addresses, emergency message body, image attachments, and check-in logs) are stored locally on the device using AES-256 GCM double-envelope encryption backed by Android KeyStore and SQLite. No data ever leaves the device until emergency dispatch is triggered.
 
 - **📱 Modern Jetpack Compose UI:**  
-  Designed with modern dark-mode aesthetics, dynamic status badges (`ACTIVE`, `WARNING`, `EXPIRED`), countdown timer display, and simple one-tap check-in confirmation ("ICH BIN NOCH DA").
+  Designed with modern dark-mode aesthetics, dynamic status badges (`ACTIVE`, `WARNING`, `EXPIRED`), countdown timer display, and simple one-tap check-in confirmation ("ICH BIN NOCH DA / I AM ALIVE").
 
 - **📷 Emergency Image File Attachments with Thumbnail Previews:**  
   Attach photos from your device gallery (ID cards, medical notes, emergency documents, location maps). Photos are stored securely in private app storage, rendered as small rounded thumbnails in settings, and attached automatically as `MimeMultipart` image attachments in emergency emails.
@@ -102,7 +105,7 @@ To use Gmail:
    - **Port:** `587`
    - **Username:** Your full Gmail address
    - **Password:** Paste the 16-character App Password (without spaces)
-5. Tap **`📧 E-MAIL VERBINDUNG JETZT TESTEN`** to verify connection.
+5. Tap **`📧 E-MAIL VERBINDUNG JETZT TESTEN / TEST EMAIL CONNECTION NOW`** to verify connection.
 
 ### 🟡 GMX / WEB.DE Configuration
 1. Log in to GMX or WEB.DE via desktop web browser.
@@ -161,7 +164,7 @@ In the **LastMessage Android App**:
 1. Open **Settings** -> **Fail-Safe & Redundancy**.
 2. Enable **`🏠 Eigenen Server / Raspberry Pi nutzen`**.
 3. Enter your server URL (e.g., `http://192.168.1.100:8080/ping` or `https://your-domain.com/ping`).
-4. Tap **`🌐 SERVER-PING JETZT TESTEN`** to confirm connection.
+4. Tap **`🌐 SERVER-PING JETZT TESTEN / TEST SERVER PING NOW`** to confirm connection.
 
 ---
 
