@@ -3,7 +3,7 @@ package com.dms.app.domain.models
 import java.time.Instant
 
 /**
- * Global application timer intervals, dispatch preferences, and fail-safe redundancy settings.
+ * Global application timer intervals, dispatch preferences, language settings, and fail-safe redundancy settings.
  */
 data class DmsConfig(
     val id: Int = 1,
@@ -11,6 +11,7 @@ data class DmsConfig(
     val primaryDispatchMethod: String = "SMS", // Options: "SMS", "EMAIL", "BOTH", "SMS_THEN_EMAIL"
     val retryCount: Int = 3,
     val isActive: Boolean = true,
+    val language: String = "DE", // Options: "DE" (German), "EN" (English)
     val enableBootRecovery: Boolean = true,
     val enableBatteryWarnings: Boolean = true,
     val enableCloudWatchdog: Boolean = false,

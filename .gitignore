@@ -14,3 +14,10 @@ __pycache__/
 *.pyc
 *.pyo
 server/__pycache__/
+
+# AI / Internal scratch logs & metadata
+.agents/
+.kotlin/
+ORIGINAL_REQUEST.md
+PROJECT.md
+docs/

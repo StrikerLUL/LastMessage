@@ -31,9 +31,9 @@ import java.io.File
 
 /**
  * SettingsScreen Jetpack Compose layout presenter for LastMessage.
- * Provides controls for configuring timer intervals, emergency contacts, dispatch strategy,
- * encrypted SMTP credentials, image attachments, fail-safe redundancy settings (Boot Recovery,
- * Low Battery Guardian, Self-Hosted Raspberry Pi / Home-Server Watchdog Web-Ping), and live testing.
+ * Provides controls for language selection (Deutsch / English), countdown timer intervals,
+ * emergency contacts, dispatch strategy, encrypted SMTP credentials, image attachments,
+ * fail-safe redundancy settings (Boot Recovery, Low Battery Guardian, Self-Hosted Watchdog), and live testing.
  */
 class SettingsScreen(
     private val viewModel: SettingsViewModel
@@ -64,6 +64,9 @@ class SettingsScreen(
         }
 
         // Initialize local state
+        var selectedLanguage by remember { mutableStateOf(config.language) }
+        val isEn = selectedLanguage == "EN"
+
         var selectedIntervalHours by remember {
             mutableStateOf((config.timerIntervalMinutes / 60).toString())
         }
@@ -77,7 +80,7 @@ class SettingsScreen(
         var watchdogPingUrl by remember { mutableStateOf(config.watchdogPingUrl) }
 
         var recipientName by remember {
-            mutableStateOf(contacts.firstOrNull()?.recipientName ?: "Notfall-Kontakt")
+            mutableStateOf(contacts.firstOrNull()?.recipientName ?: (if (isEn) "Emergency Contact" else "Notfall-Kontakt"))
         }
         var recipientPhone by remember {
             mutableStateOf(contacts.firstOrNull()?.phoneNumber ?: "")
@@ -107,6 +110,7 @@ class SettingsScreen(
 
         // Sync state from database
         LaunchedEffect(config) {
+            selectedLanguage = config.language
             enableBootRecovery = config.enableBootRecovery
             enableBatteryWarnings = config.enableBatteryWarnings
             enableCloudWatchdog = config.enableCloudWatchdog
@@ -121,7 +125,7 @@ class SettingsScreen(
         }
         LaunchedEffect(contacts) {
             contacts.firstOrNull()?.let {
-                if (recipientName.isBlank() || recipientName == "Notfall-Kontakt") recipientName = it.recipientName
+                if (recipientName.isBlank() || recipientName == "Notfall-Kontakt" || recipientName == "Emergency Contact") recipientName = it.recipientName
                 if (recipientPhone.isBlank()) recipientPhone = it.phoneNumber
                 if (recipientEmail.isBlank()) recipientEmail = it.emailAddress
             }
@@ -153,7 +157,7 @@ class SettingsScreen(
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "LastMessage Einstellungen",
+                    text = if (isEn) "LastMessage Settings" else "LastMessage Einstellungen",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White
@@ -198,7 +202,7 @@ class SettingsScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = if (res.success) "TEST ERFOLGREICH" else "HINWEIS ZUR LÖSUNG",
+                                text = if (res.success) (if (isEn) "TEST SUCCESSFUL" else "TEST ERFOLGREICH") else (if (isEn) "DIAGNOSTIC ADVICE" else "HINWEIS ZUR LÖSUNG"),
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
                                 fontSize = 16.sp
@@ -217,6 +221,58 @@ class SettingsScreen(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            // Section 0: SPRACHE / LANGUAGE SWITCHER
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = if (isEn) "APP LANGUAGE" else "SPRACHE / LANGUAGE",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF81D4FA)
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        FilterChip(
+                            selected = selectedLanguage == "DE",
+                            onClick = {
+                                selectedLanguage = "DE"
+                                val mins = selectedIntervalHours.toLong() * 60
+                                viewModel.updateConfig(
+                                    mins, selectedDispatchMethod, 3, true,
+                                    "DE", enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl
+                                )
+                            },
+                            label = { Text("Deutsch 🇩🇪", color = Color.White) },
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        FilterChip(
+                            selected = selectedLanguage == "EN",
+                            onClick = {
+                                selectedLanguage = "EN"
+                                val mins = selectedIntervalHours.toLong() * 60
+                                viewModel.updateConfig(
+                                    mins, selectedDispatchMethod, 3, true,
+                                    "EN", enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl
+                                )
+                            },
+                            label = { Text("English 🇬🇧", color = Color.White) },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             // Section 1: Timer Intervall
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -225,7 +281,7 @@ class SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "COUNTDOWN INTERVALL",
+                        text = if (isEn) "COUNTDOWN INTERVAL" else "COUNTDOWN INTERVALL",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF81D4FA)
@@ -244,7 +300,7 @@ class SettingsScreen(
                                     val mins = hours.toLong() * 60
                                     viewModel.updateConfig(
                                         mins, selectedDispatchMethod, 3, true,
-                                        enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl
+                                        selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl
                                     )
                                 },
                                 label = { Text("${hours}h", color = Color.White) }
@@ -267,7 +323,7 @@ class SettingsScreen(
                         Icon(imageVector = Icons.Default.Shield, contentDescription = null, tint = Color(0xFFFFD54F))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "AUSFALLSCHUTZ & EIGENER SERVER",
+                            text = if (isEn) "FAIL-SAFE & REDUNDANCY" else "AUSFALLSCHUTZ & EIGENER SERVER",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFFFFD54F)
@@ -282,15 +338,15 @@ class SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("⚡ Sofort-Versand nach Boot/Aufladen", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
-                            Text("Falls das Handy aus war und verstrichen ist, wird beim Einschalten/Laden sofort gesendet.", color = Color.Gray, fontSize = 11.sp, lineHeight = 15.sp)
+                            Text(if (isEn) "⚡ Instant Dispatch After Boot/Recharge" else "⚡ Sofort-Versand nach Boot/Aufladen", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+                            Text(if (isEn) "If phone was dead and timer expired, dispatches emergency alerts immediately upon boot." else "Falls das Handy aus war und verstrichen ist, wird beim Einschalten/Laden sofort gesendet.", color = Color.Gray, fontSize = 11.sp, lineHeight = 15.sp)
                         }
                         Switch(
                             checked = enableBootRecovery,
                             onCheckedChange = {
                                 enableBootRecovery = it
                                 val mins = selectedIntervalHours.toLong() * 60
-                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, it, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl)
+                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, it, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl)
                             }
                         )
                     }
@@ -304,15 +360,15 @@ class SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("🔋 Akku-Warnung (Unter 15%)", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
-                            Text("Schlägt Alarm, wenn der Akku leer läuft, um rechtzeitig einzuchecken.", color = Color.Gray, fontSize = 11.sp, lineHeight = 15.sp)
+                            Text(if (isEn) "🔋 Low Battery Alert (Below 15%)" else "🔋 Akku-Warnung (Unter 15%)", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+                            Text(if (isEn) "Warns when battery is running low so you can plug in or check in." else "Schlägt Alarm, wenn der Akku leer läuft, um rechtzeitig einzuchecken.", color = Color.Gray, fontSize = 11.sp, lineHeight = 15.sp)
                         }
                         Switch(
                             checked = enableBatteryWarnings,
                             onCheckedChange = {
                                 enableBatteryWarnings = it
                                 val mins = selectedIntervalHours.toLong() * 60
-                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, enableBootRecovery, it, enableCloudWatchdog, watchdogPingUrl)
+                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, it, enableCloudWatchdog, watchdogPingUrl)
                             }
                         )
                     }
@@ -328,15 +384,15 @@ class SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("🏠 Eigenen Server / Raspberry Pi nutzen", fontWeight = FontWeight.Bold, color = Color(0xFF80DEEA), fontSize = 13.sp)
-                            Text("Verbindet die App mit Ihrem eigenen Heimserver. Wenn Ihr Handy leer/aus bleibt, übernimmt Ihr Server automatisch den Notfall-Versand!", color = Color.Gray, fontSize = 11.sp, lineHeight = 15.sp)
+                            Text(if (isEn) "🏠 Self-Hosted Server / Raspberry Pi Watchdog" else "🏠 Eigenen Server / Raspberry Pi nutzen", fontWeight = FontWeight.Bold, color = Color(0xFF80DEEA), fontSize = 13.sp)
+                            Text(if (isEn) "Sends a heartbeat ping on check-in to your server. If your phone stays dead, your home server sends emergency emails!" else "Verbindet die App mit Ihrem eigenen Heimserver. Wenn Ihr Handy leer/aus bleibt, übernimmt Ihr Server automatisch den Notfall-Versand!", color = Color.Gray, fontSize = 11.sp, lineHeight = 15.sp)
                         }
                         Switch(
                             checked = enableCloudWatchdog,
                             onCheckedChange = {
                                 enableCloudWatchdog = it
                                 val mins = selectedIntervalHours.toLong() * 60
-                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, enableBootRecovery, enableBatteryWarnings, it, watchdogPingUrl)
+                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, it, watchdogPingUrl)
                             }
                         )
                     }
@@ -350,9 +406,9 @@ class SettingsScreen(
                             shape = RoundedCornerShape(10.dp)
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
-                                Text("ℹ️ EIGENER WATCHDOG SERVER (PYTHON / DOCKER):", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF80DEEA))
+                                Text(if (isEn) "ℹ️ SELF-HOSTED WATCHDOG SERVER (PYTHON / DOCKER):" else "ℹ️ EIGENER WATCHDOG SERVER (PYTHON / DOCKER):", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color(0xFF80DEEA))
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text("Im Projektordner 'server/' befindet sich der kostenlose Python/Docker-Server für Ihren Raspberry Pi oder Linux-Server. Er empfängt die Pings und versendet E-Mails, falls Ihr Handy aus bleibt.", fontSize = 11.sp, color = Color.White, lineHeight = 15.sp)
+                                Text(if (isEn) "The 'server/' directory contains the free Python/Docker server for your Raspberry Pi or Linux server." else "Im Projektordner 'server/' befindet sich der kostenlose Python/Docker-Server für Ihren Raspberry Pi oder Linux-Server.", fontSize = 11.sp, color = Color.White, lineHeight = 15.sp)
                             }
                         }
 
@@ -361,7 +417,7 @@ class SettingsScreen(
                         OutlinedTextField(
                             value = watchdogPingUrl,
                             onValueChange = { watchdogPingUrl = it.trim() },
-                            label = { Text("Server Ping URL (z.B. http://192.168.1.100:8080/ping)") },
+                            label = { Text(if (isEn) "Server Ping URL (e.g. http://192.168.1.100:8080/ping)" else "Server Ping URL (z.B. http://192.168.1.100:8080/ping)") },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             colors = OutlinedTextFieldDefaults.colors(
@@ -380,7 +436,7 @@ class SettingsScreen(
                         ) {
                             Icon(imageVector = Icons.Default.CloudSync, contentDescription = null, tint = Color(0xFF80DEEA))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("🌐 SERVER-PING JETZT TESTEN", fontSize = 12.sp, color = Color(0xFF80DEEA), fontWeight = FontWeight.Bold)
+                            Text(if (isEn) "🌐 TEST SERVER PING NOW" else "🌐 SERVER-PING JETZT TESTEN", fontSize = 12.sp, color = Color(0xFF80DEEA), fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -396,7 +452,7 @@ class SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "NOTFALL-VERSANDMETHODE",
+                        text = if (isEn) "EMERGENCY DISPATCH METHOD" else "NOTFALL-VERSANDMETHODE",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF81D4FA)
@@ -404,7 +460,12 @@ class SettingsScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        val methods = listOf(
+                        val methods = if (isEn) listOf(
+                            "SMS" to "SMS Only",
+                            "EMAIL" to "Email Only",
+                            "SMS_THEN_EMAIL" to "SMS (Fallback: Email)",
+                            "BOTH" to "SMS + Email Simultaneously"
+                        ) else listOf(
                             "SMS" to "Nur SMS",
                             "EMAIL" to "Nur E-Mail",
                             "SMS_THEN_EMAIL" to "SMS (Fallback: E-Mail)",
@@ -416,7 +477,7 @@ class SettingsScreen(
                                 onClick = {
                                     selectedDispatchMethod = key
                                     val mins = selectedIntervalHours.toLong() * 60
-                                    viewModel.updateConfig(mins, key, 3, true, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl)
+                                    viewModel.updateConfig(mins, key, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl)
                                 },
                                 label = { Text(label, color = Color.White) },
                                 modifier = Modifier.fillMaxWidth()
@@ -436,7 +497,7 @@ class SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "NOTFALL-EMPFÄNGER (SMS & E-MAIL)",
+                        text = if (isEn) "EMERGENCY RECIPIENT (SMS & EMAIL)" else "NOTFALL-EMPFÄNGER (SMS & E-MAIL)",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF81D4FA)
@@ -446,7 +507,7 @@ class SettingsScreen(
                     OutlinedTextField(
                         value = recipientName,
                         onValueChange = { recipientName = it.replace("\n", "").replace("\r", "") },
-                        label = { Text("Name des Empfängers") },
+                        label = { Text(if (isEn) "Recipient Name" else "Name des Empfängers") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         colors = OutlinedTextFieldDefaults.colors(
@@ -460,7 +521,7 @@ class SettingsScreen(
                     OutlinedTextField(
                         value = recipientPhone,
                         onValueChange = { recipientPhone = it.replace("\n", "").replace("\r", "") },
-                        label = { Text("Handynummer für SMS (+49...)") },
+                        label = { Text(if (isEn) "Phone Number (+49...)" else "Handynummer für SMS (+49...)") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
@@ -475,7 +536,7 @@ class SettingsScreen(
                     OutlinedTextField(
                         value = recipientEmail,
                         onValueChange = { recipientEmail = it.replace("\n", "").replace("\r", "") },
-                        label = { Text("E-Mail-Adresse des Empfängers") },
+                        label = { Text(if (isEn) "Recipient Email Address" else "E-Mail-Adresse des Empfängers") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
@@ -497,7 +558,7 @@ class SettingsScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "NOTFALL-NACHRICHT & BILDER-ANHÄNGE",
+                        text = if (isEn) "EMERGENCY MESSAGE & PHOTO ATTACHMENTS" else "NOTFALL-NACHRICHT & BILDER-ANHÄNGE",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF81D4FA)
@@ -507,7 +568,7 @@ class SettingsScreen(
                     OutlinedTextField(
                         value = messageBody,
                         onValueChange = { messageBody = it },
-                        label = { Text("Nachrichtentext") },
+                        label = { Text(if (isEn) "Message Text" else "Nachrichtentext") },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(120.dp),
@@ -520,7 +581,7 @@ class SettingsScreen(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     Text(
-                        text = "📷 NOTFALL-BILDER ANHÄNGEN (MIT VORSCHAU):",
+                        text = if (isEn) "📷 ATTACHED EMERGENCY PHOTOS:" else "📷 NOTFALL-BILDER ANHÄNGEN (MIT VORSCHAU):",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.LightGray
@@ -529,7 +590,7 @@ class SettingsScreen(
 
                     if (emergencyMessage.attachmentPaths.isEmpty()) {
                         Text(
-                            text = "Noch keine Bilder angehängt.",
+                            text = if (isEn) "No photos attached yet." else "Noch keine Bilder angehängt.",
                             fontSize = 12.sp,
                             color = Color.Gray
                         )
@@ -622,7 +683,7 @@ class SettingsScreen(
                     ) {
                         Icon(imageVector = Icons.Default.AddPhotoAlternate, contentDescription = null, tint = Color(0xFF80DEEA))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("📷 BILD AUS GALERIE HINZUFÜGEN", fontSize = 12.sp, color = Color(0xFF80DEEA), fontWeight = FontWeight.Bold)
+                        Text(if (isEn) "📷 ADD PHOTO FROM GALLERY" else "📷 BILD AUS GALERIE HINZUFÜGEN", fontSize = 12.sp, color = Color(0xFF80DEEA), fontWeight = FontWeight.Bold)
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
@@ -641,7 +702,7 @@ class SettingsScreen(
                     ) {
                         Icon(imageVector = Icons.Default.Phone, contentDescription = null, tint = Color(0xFFA5D6A7))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("💬 TEST-SMS JETZT SENDEN", fontSize = 12.sp, color = Color(0xFFA5D6A7), fontWeight = FontWeight.Bold)
+                        Text(if (isEn) "💬 SEND TEST SMS NOW" else "💬 TEST-SMS JETZT SENDEN", fontSize = 12.sp, color = Color(0xFFA5D6A7), fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -659,7 +720,7 @@ class SettingsScreen(
                         Icon(imageVector = Icons.Default.Info, contentDescription = null, tint = Color(0xFF81D4FA))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "SMTP SCHNELL-AUSWAHL & LEGENDE",
+                            text = if (isEn) "SMTP PROVIDER PRESETS & GUIDELINES" else "SMTP SCHNELL-AUSWAHL & LEGENDE",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF81D4FA)
@@ -668,7 +729,7 @@ class SettingsScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "Tippen Sie auf Ihre E-Mail-Anbieter Vorlage:",
+                        text = if (isEn) "Tap an email provider preset to fill server host & port:" else "Tippen Sie auf Ihre E-Mail-Anbieter Vorlage:",
                         fontSize = 12.sp,
                         color = Color.LightGray
                     )
@@ -705,13 +766,13 @@ class SettingsScreen(
                         shape = RoundedCornerShape(10.dp)
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            Text("ℹ️ WICHTIGE EINSTELLUNGEN PRO ANBIETER:", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF80DEEA))
+                            Text(if (isEn) "ℹ️ PROVIDER GUIDELINES:" else "ℹ️ WICHTIGE EINSTELLUNGEN PRO ANBIETER:", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color(0xFF80DEEA))
                             Spacer(modifier = Modifier.height(6.dp))
-                            Text("🔴 Gmail: Normales Passwort funktioniert NICHT. Sie MÜSSEN auf myaccount.google.com/apppasswords ein 16-stelliges 'App-Passwort' erstellen.", fontSize = 11.sp, color = Color.White, lineHeight = 16.sp)
+                            Text(if (isEn) "🔴 Gmail: Regular passwords do NOT work. You MUST create a 16-character 'App Password' at myaccount.google.com/apppasswords." else "🔴 Gmail: Normales Passwort funktioniert NICHT. Sie MÜSSEN auf myaccount.google.com/apppasswords ein 16-stelliges 'App-Passwort' erstellen.", fontSize = 11.sp, color = Color.White, lineHeight = 16.sp)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text("🟡 GMX / WEB.DE: Loggen Sie sich im Browser ein -> Einstellungen -> 'POP3/SMTP-Übertragung erlauben' aktivieren.", fontSize = 11.sp, color = Color.White, lineHeight = 16.sp)
+                            Text(if (isEn) "🟡 GMX / WEB.DE: Log in via browser -> Settings -> Enable 'Allow POP3/SMTP access'." else "🟡 GMX / WEB.DE: Loggen Sie sich im Browser ein -> Einstellungen -> 'POP3/SMTP-Übertragung erlauben' aktivieren.", fontSize = 11.sp, color = Color.White, lineHeight = 16.sp)
                             Spacer(modifier = Modifier.height(4.dp))
-                            Text("🔵 Ports: Port 587 (Standard für STARTTLS) oder Port 465 (SSL).", fontSize = 11.sp, color = Color.White, lineHeight = 16.sp)
+                            Text("🔵 Ports: Port 587 (STARTTLS) or Port 465 (SSL).", fontSize = 11.sp, color = Color.White, lineHeight = 16.sp)
                         }
                     }
                 }
@@ -730,7 +791,7 @@ class SettingsScreen(
                         Icon(imageVector = Icons.Default.Email, contentDescription = null, tint = Color(0xFF81D4FA))
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "SMTP E-MAIL-SERVER EINSTELLUNGEN",
+                            text = if (isEn) "SMTP EMAIL SERVER SETTINGS" else "SMTP E-MAIL-SERVER EINSTELLUNGEN",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF81D4FA)
@@ -770,7 +831,7 @@ class SettingsScreen(
                     OutlinedTextField(
                         value = smtpUsername,
                         onValueChange = { smtpUsername = it.replace("\n", "").replace("\r", "").trim() },
-                        label = { Text("Absender-Email / Benutzername") },
+                        label = { Text(if (isEn) "Sender Email / Username" else "Absender-Email / Benutzername") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
@@ -785,7 +846,7 @@ class SettingsScreen(
                     OutlinedTextField(
                         value = smtpPassword,
                         onValueChange = { smtpPassword = it.replace("\n", "").replace("\r", "").trim() },
-                        label = { Text("Passwort / App-Passwort") },
+                        label = { Text(if (isEn) "Password / App Password" else "Passwort / App-Passwort") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
                         visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -836,11 +897,11 @@ class SettingsScreen(
                         if (isTesting) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = Color.White)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("VERBINDUNG WIRD GEPRÜFT...", fontSize = 12.sp, color = Color.White)
+                            Text(if (isEn) "VERIFYING CONNECTION..." else "VERBINDUNG WIRD GEPRÜFT...", fontSize = 12.sp, color = Color.White)
                         } else {
                             Icon(imageVector = Icons.Default.Send, contentDescription = null, tint = Color(0xFF81D4FA))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("📧 E-MAIL VERBINDUNG JETZT TESTEN", fontSize = 12.sp, color = Color(0xFF81D4FA), fontWeight = FontWeight.Bold)
+                            Text(if (isEn) "📧 TEST EMAIL CONNECTION NOW" else "📧 E-MAIL VERBINDUNG JETZT TESTEN", fontSize = 12.sp, color = Color(0xFF81D4FA), fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -859,7 +920,7 @@ class SettingsScreen(
 
                     viewModel.updateConfig(
                         selectedIntervalHours.toLong() * 60, selectedDispatchMethod, 3, true,
-                        enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl
+                        selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl
                     )
                     viewModel.addEmergencyContact(recipientName, recipientPhone, cleanRecipient, 1)
                     viewModel.saveSmtpCredentials(cleanHost, port, cleanUser, cleanPassword, true)
@@ -873,7 +934,7 @@ class SettingsScreen(
             ) {
                 Icon(imageVector = Icons.Default.Save, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(text = "ALLE EINSTELLUNGEN SPEICHERN", fontWeight = FontWeight.Bold)
+                Text(text = if (isEn) "SAVE ALL SETTINGS" else "ALLE EINSTELLUNGEN SPEICHERN", fontWeight = FontWeight.Bold)
             }
         }
     }

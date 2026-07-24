@@ -14,7 +14,7 @@ import java.time.Instant
 class SQLCipherHelper(
     context: Context? = null,
     dbName: String = "dms_app.db"
-) : SQLiteOpenHelper(context, dbName, null, 3) {
+) : SQLiteOpenHelper(context, dbName, null, 4) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -25,6 +25,7 @@ class SQLCipherHelper(
                 primary_dispatch_method TEXT NOT NULL,
                 retry_count INTEGER NOT NULL,
                 is_active INTEGER NOT NULL,
+                language TEXT NOT NULL DEFAULT 'DE',
                 enable_boot_recovery INTEGER NOT NULL DEFAULT 1,
                 enable_battery_warnings INTEGER NOT NULL DEFAULT 1,
                 enable_cloud_watchdog INTEGER NOT NULL DEFAULT 0,
@@ -104,6 +105,7 @@ class SQLCipherHelper(
             put("primary_dispatch_method", defaultConfig.primaryDispatchMethod)
             put("retry_count", defaultConfig.retryCount)
             put("is_active", if (defaultConfig.isActive) 1 else 0)
+            put("language", defaultConfig.language)
             put("enable_boot_recovery", if (defaultConfig.enableBootRecovery) 1 else 0)
             put("enable_battery_warnings", if (defaultConfig.enableBatteryWarnings) 1 else 0)
             put("enable_cloud_watchdog", if (defaultConfig.enableCloudWatchdog) 1 else 0)
@@ -116,7 +118,7 @@ class SQLCipherHelper(
         // Seed default message
         val cvMsg = ContentValues().apply {
             put("id", 1)
-            put("body_template", "EMERGENCY: User failed to check in with Dead Man's Switch application.")
+            put("body_template", "EMERGENCY: User failed to check in with LastMessage application.")
             put("contains_location", 0)
             put("attachment_paths", "")
             put("last_updated", Instant.now().toString())
@@ -140,13 +142,19 @@ class SQLCipherHelper(
             } catch (ignored: Exception) {
             }
         }
+        if (oldVersion < 4) {
+            try {
+                db.execSQL("ALTER TABLE app_config ADD COLUMN language TEXT NOT NULL DEFAULT 'DE'")
+            } catch (ignored: Exception) {
+            }
+        }
     }
 
     @Synchronized
     fun getAppConfig(): DmsConfig {
         try {
             val db = readableDatabase
-            db.rawQuery("SELECT id, timer_interval_minutes, primary_dispatch_method, retry_count, is_active, enable_boot_recovery, enable_battery_warnings, enable_cloud_watchdog, watchdog_ping_url, created_at, updated_at FROM app_config WHERE id = 1", null).use { cursor ->
+            db.rawQuery("SELECT id, timer_interval_minutes, primary_dispatch_method, retry_count, is_active, language, enable_boot_recovery, enable_battery_warnings, enable_cloud_watchdog, watchdog_ping_url, created_at, updated_at FROM app_config WHERE id = 1", null).use { cursor ->
                 if (cursor.moveToFirst()) {
                     return DmsConfig(
                         id = cursor.getInt(0),
@@ -154,12 +162,13 @@ class SQLCipherHelper(
                         primaryDispatchMethod = cursor.getString(2),
                         retryCount = cursor.getInt(3),
                         isActive = cursor.getInt(4) == 1,
-                        enableBootRecovery = cursor.getInt(5) == 1,
-                        enableBatteryWarnings = cursor.getInt(6) == 1,
-                        enableCloudWatchdog = cursor.getInt(7) == 1,
-                        watchdogPingUrl = cursor.getString(8) ?: "",
-                        createdAt = cursor.getString(9),
-                        updatedAt = cursor.getString(10)
+                        language = cursor.getString(5) ?: "DE",
+                        enableBootRecovery = cursor.getInt(6) == 1,
+                        enableBatteryWarnings = cursor.getInt(7) == 1,
+                        enableCloudWatchdog = cursor.getInt(8) == 1,
+                        watchdogPingUrl = cursor.getString(9) ?: "",
+                        createdAt = cursor.getString(10),
+                        updatedAt = cursor.getString(11)
                     )
                 }
             }
@@ -178,6 +187,7 @@ class SQLCipherHelper(
                 put("primary_dispatch_method", config.primaryDispatchMethod)
                 put("retry_count", config.retryCount)
                 put("is_active", if (config.isActive) 1 else 0)
+                put("language", config.language)
                 put("enable_boot_recovery", if (config.enableBootRecovery) 1 else 0)
                 put("enable_battery_warnings", if (config.enableBatteryWarnings) 1 else 0)
                 put("enable_cloud_watchdog", if (config.enableCloudWatchdog) 1 else 0)
@@ -315,7 +325,7 @@ class SQLCipherHelper(
         }
         return EmergencyMessage(
             id = 1,
-            bodyTemplate = "EMERGENCY: User failed to check in with Dead Man's Switch application.",
+            bodyTemplate = "EMERGENCY: User failed to check in with LastMessage application.",
             containsLocation = false,
             attachmentPaths = emptyList(),
             lastUpdated = Instant.now().toString()

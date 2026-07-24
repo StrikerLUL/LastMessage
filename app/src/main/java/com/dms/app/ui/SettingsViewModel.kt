@@ -21,8 +21,8 @@ import java.io.FileOutputStream
 
 /**
  * SettingsViewModel manages configuration settings, emergency contacts, SMTP credentials,
- * provider preset legends, image attachments, redundancy fail-safe settings (Boot-Recovery & Cloud Watchdog),
- * and real-time live SMTP / SMS / Watchdog testing.
+ * language preferences (DE / EN), provider preset legends, image attachments,
+ * redundancy fail-safe settings (Boot-Recovery & Cloud Watchdog), and real-time live testing.
  */
 class SettingsViewModel(
     private val storage: ISecureStorage,
@@ -66,6 +66,7 @@ class SettingsViewModel(
         dispatchMethod: String,
         retryCount: Int = 3,
         isActive: Boolean = true,
+        language: String = "DE",
         enableBootRecovery: Boolean = true,
         enableBatteryWarnings: Boolean = true,
         enableCloudWatchdog: Boolean = false,
@@ -77,6 +78,7 @@ class SettingsViewModel(
                 primaryDispatchMethod = dispatchMethod,
                 retryCount = retryCount,
                 isActive = isActive,
+                language = language,
                 enableBootRecovery = enableBootRecovery,
                 enableBatteryWarnings = enableBatteryWarnings,
                 enableCloudWatchdog = enableCloudWatchdog,
@@ -84,7 +86,7 @@ class SettingsViewModel(
             )
             storage.saveConfig(updated)
             _configState.value = updated
-            _statusMessage.value = "Konfiguration & Ausfallschutz erfolgreich gespeichert."
+            _statusMessage.value = if (language == "EN") "Configuration & fail-safe options saved." else "Konfiguration & Ausfallschutz erfolgreich gespeichert."
         }
     }
 
@@ -98,7 +100,7 @@ class SettingsViewModel(
             )
             storage.addEmergencyContact(contact)
             _contactsState.value = storage.getEmergencyContacts()
-            _statusMessage.value = "Kontakt '$name' gespeichert."
+            _statusMessage.value = if (_configState.value.language == "EN") "Contact '$name' saved." else "Kontakt '$name' gespeichert."
         }
     }
 
@@ -113,7 +115,7 @@ class SettingsViewModel(
             )
             storage.saveSmtpCredentials(smtp)
             _smtpState.value = storage.getSmtpCredentials()
-            _statusMessage.value = "SMTP-Zugangsdaten dauerhaft gespeichert."
+            _statusMessage.value = if (_configState.value.language == "EN") "SMTP credentials saved permanently." else "SMTP-Zugangsdaten dauerhaft gespeichert."
         }
     }
 
@@ -123,7 +125,7 @@ class SettingsViewModel(
             val msg = current.copy(bodyTemplate = bodyTemplate, containsLocation = containsLocation)
             storage.saveEmergencyMessage(msg)
             _emergencyMessageState.value = storage.getEmergencyMessage()
-            _statusMessage.value = "Notfall-Nachrichtentext gespeichert."
+            _statusMessage.value = if (_configState.value.language == "EN") "Emergency message text saved." else "Notfall-Nachrichtentext gespeichert."
         }
     }
 
@@ -148,10 +150,10 @@ class SettingsViewModel(
                     val updatedMsg = current.copy(attachmentPaths = newPaths)
                     storage.saveEmergencyMessage(updatedMsg)
                     _emergencyMessageState.value = updatedMsg
-                    _statusMessage.value = "Bild erfolgreich als Anhang hinzugefügt."
+                    _statusMessage.value = if (_configState.value.language == "EN") "Photo attached successfully." else "Bild erfolgreich als Anhang hinzugefügt."
                 }
             } catch (e: Exception) {
-                _statusMessage.value = "Fehler beim Hinzufügen des Bildes: ${e.message}"
+                _statusMessage.value = "Error adding image: ${e.message}"
             }
         }
     }
@@ -168,18 +170,19 @@ class SettingsViewModel(
                 val updatedMsg = current.copy(attachmentPaths = newPaths)
                 storage.saveEmergencyMessage(updatedMsg)
                 _emergencyMessageState.value = updatedMsg
-                _statusMessage.value = "Bild-Anhang entfernt."
+                _statusMessage.value = if (_configState.value.language == "EN") "Photo attachment removed." else "Bild-Anhang entfernt."
             } catch (e: Exception) {
-                _statusMessage.value = "Fehler beim Entfernen des Bildes."
+                _statusMessage.value = "Error removing image."
             }
         }
     }
 
     fun testWatchdogPing(url: String) {
+        val isEn = _configState.value.language == "EN"
         if (url.isBlank()) {
             _testResult.value = TestResult(
                 success = false,
-                message = "Bitte eine gültige Webhook/Ping-URL eingeben!"
+                message = if (isEn) "Please enter a valid webhook/ping URL!" else "Bitte eine gültige Webhook/Ping-URL eingeben!"
             )
             return
         }
@@ -193,18 +196,19 @@ class SettingsViewModel(
             if (success) {
                 _testResult.value = TestResult(
                     success = true,
-                    message = "✅ CLOUD WATCHDOG PING ERFOLGREICH!\n\nIhr Server/Webhook hat den Ping empfangen."
+                    message = if (isEn) "✅ WATCHDOG PING SUCCESSFUL!\nYour server received the ping." else "✅ CLOUD WATCHDOG PING ERFOLGREICH!\n\nIhr Server/Webhook hat den Ping empfangen."
                 )
             } else {
                 _testResult.value = TestResult(
                     success = false,
-                    message = "❌ WATCHDOG PING FEHLGESCHLAGEN!\nPrüfen Sie die Internetverbindung und die URL."
+                    message = if (isEn) "❌ WATCHDOG PING FAILED!\nCheck internet connection and server URL." else "❌ WATCHDOG PING FEHLGESCHLAGEN!\nPrüfen Sie die Internetverbindung und die URL."
                 )
             }
         }
     }
 
     fun testSmtpConnection(host: String, port: Int, username: String, passwordPlain: String, recipientEmail: String) {
+        val isEn = _configState.value.language == "EN"
         _isTesting.value = true
         _testResult.value = null
 
@@ -225,7 +229,7 @@ class SettingsViewModel(
                 _isTesting.value = false
                 _testResult.value = TestResult(
                     success = false,
-                    message = "Bitte Server, Absender-Email, Passwort und Notfall-Empfänger E-Mail ausfüllen!"
+                    message = if (isEn) "Please fill in Server, Sender Email, Password, and Recipient Email!" else "Bitte Server, Absender-Email, Passwort und Notfall-Empfänger E-Mail ausfüllen!"
                 )
                 return@launch
             }
@@ -233,8 +237,8 @@ class SettingsViewModel(
             val result = smtpMailer.sendSmtpEmailWithRetry(
                 smtp = credentials,
                 recipientEmail = recipientEmail,
-                message = "TEST-NACHRICHT: Dies ist eine Test-E-Mail der Dead Man's Switch App. Ihre SMTP-Einstellungen sind korrekt!" +
-                        if (currentAttachments.isNotEmpty()) " (${currentAttachments.size} Anhang/Anhänge mitgesendet)" else "",
+                message = (if (isEn) "TEST MESSAGE: This is a test email from the LastMessage app. Your SMTP settings are working!" else "TEST-NACHRICHT: Dies ist eine Test-E-Mail der LastMessage App. Ihre SMTP-Einstellungen sind korrekt!") +
+                        if (currentAttachments.isNotEmpty()) " (${currentAttachments.size} attachment(s) sent)" else "",
                 attachmentPaths = currentAttachments,
                 maxRetries = 1
             )
@@ -243,11 +247,11 @@ class SettingsViewModel(
             if (result.success) {
                 _testResult.value = TestResult(
                     success = true,
-                    message = "✅ E-MAIL ERFOLGREICH GESENDET!\n\nPrüfen Sie das Postfach von $recipientEmail" +
-                            if (currentAttachments.isNotEmpty()) " (inkl. ${currentAttachments.size} Bild-Anhang/Anhänge)" else "."
+                    message = if (isEn) "✅ EMAIL SENT SUCCESSFULLY!\n\nCheck inbox of $recipientEmail" + if (currentAttachments.isNotEmpty()) " (incl. ${currentAttachments.size} photo attachment(s))." else "."
+                    else "✅ E-MAIL ERFOLGREICH GESENDET!\n\nPrüfen Sie das Postfach von $recipientEmail" + if (currentAttachments.isNotEmpty()) " (inkl. ${currentAttachments.size} Bild-Anhang/Anhänge)" else "."
                 )
             } else {
-                val humanFriendlyAdvice = parseSmtpError(result.errorMessage)
+                val humanFriendlyAdvice = parseSmtpError(result.errorMessage, isEn)
                 _testResult.value = TestResult(
                     success = false,
                     message = humanFriendlyAdvice
@@ -257,10 +261,11 @@ class SettingsViewModel(
     }
 
     fun testSmsDispatch(phoneNumber: String) {
+        val isEn = _configState.value.language == "EN"
         if (phoneNumber.isBlank()) {
             _testResult.value = TestResult(
                 success = false,
-                message = "Bitte eine Handynummer angeben!"
+                message = if (isEn) "Please enter a phone number!" else "Bitte eine Handynummer angeben!"
             )
             return
         }
@@ -271,28 +276,65 @@ class SettingsViewModel(
         CoroutineScope(Dispatchers.IO).launch {
             val result = smsDispatcher.sendMultipartSms(
                 phoneNumber = phoneNumber,
-                message = "TEST-NACHRICHT: Dead Man's Switch SMS-Test erfolgreich!"
+                message = if (isEn) "TEST MESSAGE: LastMessage SMS test successful!" else "TEST-NACHRICHT: LastMessage SMS-Test erfolgreich!"
             )
 
             _isTesting.value = false
             if (result.success) {
                 _testResult.value = TestResult(
                     success = true,
-                    message = "✅ TEST-SMS WURDE AN $phoneNumber GESENDET!"
+                    message = if (isEn) "✅ TEST SMS SENT TO $phoneNumber!" else "✅ TEST-SMS WURDE AN $phoneNumber GESENDET!"
                 )
             } else {
                 _testResult.value = TestResult(
                     success = false,
-                    message = "❌ SMS-VERSAND FEHLGESCHLAGEN:\n${result.errorMessage}"
+                    message = if (isEn) "❌ SMS DISPATCH FAILED:\n${result.errorMessage}" else "❌ SMS-VERSAND FEHLGESCHLAGEN:\n${result.errorMessage}"
                 )
             }
         }
     }
 
-    private fun parseSmtpError(rawError: String?): String {
-        if (rawError.isNullOrBlank()) return "Unbekannter Verbindungsfehler."
+    private fun parseSmtpError(rawError: String?, isEn: Boolean): String {
+        if (rawError.isNullOrBlank()) return if (isEn) "Unknown connection error." else "Unbekannter Verbindungsfehler."
 
         val err = rawError.lowercase()
+
+        if (isEn) {
+            return when {
+                err.contains("534") || err.contains("application-specific password") || err.contains("invalidsecondfactor") -> {
+                    "🔑 GOOGLE APP PASSWORD REQUIRED!\n\n" +
+                    "Gmail blocks your regular account password for third-party apps.\n\n" +
+                    "Quick 3-step fix:\n" +
+                    "1. Open in browser: myaccount.google.com/apppasswords\n" +
+                    "2. Generate a new App Password for 'Mail'.\n" +
+                    "3. Copy the 16-character code and paste it as password below."
+                }
+                err.contains("535") || err.contains("authentication failed") || err.contains("bad credentials") || err.contains("auth") -> {
+                    "🔒 USERNAME OR PASSWORD INCORRECT!\n\n" +
+                    "The email server rejected your credentials.\n\n" +
+                    "Fix:\n" +
+                    "• Check sender email address and password.\n" +
+                    "• For Gmail/iCloud: Use an App Password instead of main password.\n" +
+                    "• For GMX/WEB.DE: Verify password spelling."
+                }
+                err.contains("554") || err.contains("550") || err.contains("disabled") || err.contains("pop3/smtp") -> {
+                    "⚙️ POP3/SMTP ACCESS DISABLED BY PROVIDER!\n\n" +
+                    "Providers like GMX or WEB.DE block external mail tools by default.\n\n" +
+                    "Fix:\n" +
+                    "1. Log in to GMX or WEB.DE in your desktop browser.\n" +
+                    "2. Go to 'Settings' -> 'POP3/SMTP'.\n" +
+                    "3. Enable 'Allow POP3 and SMTP access'."
+                }
+                err.contains("unknownhost") || err.contains("connection refused") || err.contains("timeout") || err.contains("connect") -> {
+                    "🌐 UNABLE TO CONNECT TO EMAIL SERVER!\n\n" +
+                    "Fix:\n" +
+                    "• Check your internet connection.\n" +
+                    "• Verify server hostname (e.g. smtp.gmail.com or mail.gmx.net).\n" +
+                    "• Verify port (Default: 587)."
+                }
+                else -> "❌ EMAIL DISPATCH ERROR:\n$rawError"
+            }
+        }
 
         return when {
             err.contains("534") || err.contains("application-specific password") || err.contains("invalidsecondfactor") -> {
@@ -327,9 +369,7 @@ class SettingsViewModel(
                 "• Prüfen Sie den Servernamen (z.B. smtp.gmail.com oder mail.gmx.net).\n" +
                 "• Prüfen Sie den Port (Standard: 587)."
             }
-            else -> {
-                "❌ FEHLER BEIM E-MAIL VERSAND:\n$rawError"
-            }
+            else -> "❌ FEHLER BEIM E-MAIL VERSAND:\n$rawError"
         }
     }
 

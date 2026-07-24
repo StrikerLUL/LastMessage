@@ -26,7 +26,7 @@ import com.dms.app.domain.models.TimerStatus
 /**
  * CheckInScreen UI representation and Jetpack Compose layout presenter.
  * Renders countdown timer state, status badges (ACTIVE / WARNING / EXPIRED),
- * and primary "I Am Alive" check-in button.
+ * language-aware dynamic labels (DE / EN), and primary "I Am Alive" check-in button.
  */
 class CheckInScreen(
     private val viewModel: CheckInViewModel
@@ -135,11 +135,11 @@ class CheckInScreen(
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Text(
-                        text = "VERBLEIBENDE ZEIT",
-                        fontSize = 12.sp,
+                        text = "VERBLEIBENDE ZEIT / REMAINING TIME",
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = Color.Gray,
-                        letterSpacing = 1.5.sp
+                        letterSpacing = 1.2.sp
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -154,10 +154,11 @@ class CheckInScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "Vollständig lokal & verschlüsselt auf dem Gerät",
-                        fontSize = 12.sp,
+                        text = "Vollständig lokal & verschlüsselt auf dem Gerät\n100% Local & AES-256 Encrypted",
+                        fontSize = 11.sp,
                         color = Color(0xFFB0BEC5),
-                        textAlign = TextAlign.Center
+                        textAlign = TextAlign.Center,
+                        lineHeight = 16.sp
                     )
                 }
             }
@@ -192,10 +193,10 @@ class CheckInScreen(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "ICH BIN NOCH DA",
-                        fontSize = 18.sp,
+                        text = "ICH BIN NOCH DA / I AM ALIVE",
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
+                        letterSpacing = 0.5.sp
                     )
                 }
             }
