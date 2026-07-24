@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  lastmessage-watchdog:
+    image: python:3.11-slim
+    container_name: lastmessage_watchdog
+    restart: always
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./:/app
+    working_dir: /app
+    command: python3 watchdog_server.py
+    environment:
+      - WATCHDOG_PORT=8080
+      - TIMEOUT_MINUTES=1440
+      - SECRET_TOKEN=mein_geheimes_passwort
+      - SMTP_HOST=smtp.gmail.com
+      - SMTP_PORT=587
+      - SMTP_USER=deine_email@gmail.com
+      - SMTP_PASS=dein_google_app_passwort
+      - EMERGENCY_RECIPIENT=notfall_kontakt@beispiel.de
+      - EMERGENCY_SUBJECT=NOTFALL ALARM — LastMessage Server Watchdog
+      - EMERGENCY_MESSAGE=NOTFALL ALARM: Das LastMessage-Smartphone hat seit 24 Stunden kein Lebenszeichen gesendet (Handy leer oder offline). Bitte prüfen Sie sofort die Sicherheit der Person!
