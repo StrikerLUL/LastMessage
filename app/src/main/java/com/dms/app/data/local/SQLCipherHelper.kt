@@ -14,7 +14,7 @@ import java.time.Instant
 class SQLCipherHelper(
     context: Context? = null,
     dbName: String = "dms_app.db"
-) : SQLiteOpenHelper(context, dbName, null, 4) {
+) : SQLiteOpenHelper(context, dbName, null, 5) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -22,6 +22,7 @@ class SQLCipherHelper(
             CREATE TABLE IF NOT EXISTS app_config (
                 id INTEGER PRIMARY KEY,
                 timer_interval_minutes INTEGER NOT NULL,
+                grace_period_minutes INTEGER NOT NULL DEFAULT 360,
                 primary_dispatch_method TEXT NOT NULL,
                 retry_count INTEGER NOT NULL,
                 is_active INTEGER NOT NULL,
@@ -102,6 +103,7 @@ class SQLCipherHelper(
         val cvConfig = ContentValues().apply {
             put("id", defaultConfig.id)
             put("timer_interval_minutes", defaultConfig.timerIntervalMinutes)
+            put("grace_period_minutes", defaultConfig.gracePeriodMinutes)
             put("primary_dispatch_method", defaultConfig.primaryDispatchMethod)
             put("retry_count", defaultConfig.retryCount)
             put("is_active", if (defaultConfig.isActive) 1 else 0)
@@ -148,13 +150,19 @@ class SQLCipherHelper(
             } catch (ignored: Exception) {
             }
         }
+        if (oldVersion < 5) {
+            try {
+                db.execSQL("ALTER TABLE app_config ADD COLUMN grace_period_minutes INTEGER NOT NULL DEFAULT 360")
+            } catch (ignored: Exception) {
+            }
+        }
     }
 
     @Synchronized
     fun getAppConfig(): DmsConfig {
         try {
             val db = readableDatabase
-            db.rawQuery("SELECT id, timer_interval_minutes, primary_dispatch_method, retry_count, is_active, language, enable_boot_recovery, enable_battery_warnings, enable_cloud_watchdog, watchdog_ping_url, created_at, updated_at FROM app_config WHERE id = 1", null).use { cursor ->
+            db.rawQuery("SELECT id, timer_interval_minutes, primary_dispatch_method, retry_count, is_active, language, enable_boot_recovery, enable_battery_warnings, enable_cloud_watchdog, watchdog_ping_url, grace_period_minutes, created_at, updated_at FROM app_config WHERE id = 1", null).use { cursor ->
                 if (cursor.moveToFirst()) {
                     return DmsConfig(
                         id = cursor.getInt(0),
@@ -167,8 +175,9 @@ class SQLCipherHelper(
                         enableBatteryWarnings = cursor.getInt(7) == 1,
                         enableCloudWatchdog = cursor.getInt(8) == 1,
                         watchdogPingUrl = cursor.getString(9) ?: "",
-                        createdAt = cursor.getString(10),
-                        updatedAt = cursor.getString(11)
+                        gracePeriodMinutes = cursor.getLong(10),
+                        createdAt = cursor.getString(11),
+                        updatedAt = cursor.getString(12)
                     )
                 }
             }
@@ -184,6 +193,7 @@ class SQLCipherHelper(
             val cv = ContentValues().apply {
                 put("id", config.id)
                 put("timer_interval_minutes", config.timerIntervalMinutes)
+                put("grace_period_minutes", config.gracePeriodMinutes)
                 put("primary_dispatch_method", config.primaryDispatchMethod)
                 put("retry_count", config.retryCount)
                 put("is_active", if (config.isActive) 1 else 0)

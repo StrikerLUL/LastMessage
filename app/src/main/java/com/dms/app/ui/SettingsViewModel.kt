@@ -21,8 +21,8 @@ import java.io.FileOutputStream
 
 /**
  * SettingsViewModel manages configuration settings, emergency contacts, SMTP credentials,
- * language preferences (DE / EN), provider preset legends, image attachments,
- * redundancy fail-safe settings (Boot-Recovery & Cloud Watchdog), and real-time live testing.
+ * language preferences (DE / EN), Grace Period settings (Gnadenfrist), provider preset legends,
+ * image attachments, redundancy fail-safe settings, and real-time live testing.
  */
 class SettingsViewModel(
     private val storage: ISecureStorage,
@@ -70,11 +70,13 @@ class SettingsViewModel(
         enableBootRecovery: Boolean = true,
         enableBatteryWarnings: Boolean = true,
         enableCloudWatchdog: Boolean = false,
-        watchdogPingUrl: String = ""
+        watchdogPingUrl: String = "",
+        gracePeriodMinutes: Long = 360L
     ) {
         CoroutineScope(Dispatchers.IO).launch {
             val updated = DmsConfig(
                 timerIntervalMinutes = intervalMinutes,
+                gracePeriodMinutes = gracePeriodMinutes,
                 primaryDispatchMethod = dispatchMethod,
                 retryCount = retryCount,
                 isActive = isActive,
@@ -86,7 +88,7 @@ class SettingsViewModel(
             )
             storage.saveConfig(updated)
             _configState.value = updated
-            _statusMessage.value = if (language == "EN") "Configuration & fail-safe options saved." else "Konfiguration & Ausfallschutz erfolgreich gespeichert."
+            _statusMessage.value = if (language == "EN") "Settings & Grace Period saved." else "Einstellungen & Gnadenfrist erfolgreich gespeichert."
         }
     }
 

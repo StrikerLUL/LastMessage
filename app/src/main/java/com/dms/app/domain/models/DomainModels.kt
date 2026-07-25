@@ -3,11 +3,13 @@ package com.dms.app.domain.models
 import java.time.Instant
 
 /**
- * Global application timer intervals, dispatch preferences, language settings, and fail-safe redundancy settings.
+ * Global application timer intervals, dispatch preferences, language settings,
+ * grace period settings, and fail-safe redundancy settings.
  */
 data class DmsConfig(
     val id: Int = 1,
     val timerIntervalMinutes: Long = 1440L, // Default 24 hours (1440 mins)
+    val gracePeriodMinutes: Long = 360L,   // Default 6 hours grace period (360 mins)
     val primaryDispatchMethod: String = "SMS", // Options: "SMS", "EMAIL", "BOTH", "SMS_THEN_EMAIL"
     val retryCount: Int = 3,
     val isActive: Boolean = true,
@@ -26,6 +28,15 @@ data class DmsConfig(
             2880L,  // 48 hours
             4320L,  // 72 hours
             10080L  // 7 days
+        )
+
+        val VALID_GRACE_PERIODS_MINUTES = listOf(
+            0L,     // 0 hours (Immediate dispatch)
+            60L,    // 1 hour
+            180L,   // 3 hours
+            360L,   // 6 hours (default)
+            720L,   // 12 hours
+            1440L   // 24 hours
         )
     }
 }
@@ -63,7 +74,7 @@ data class CheckInLog(
     val id: Long = 0L,
     val timestamp: String = Instant.now().toString(),
     val method: String, // "MANUAL_APP", "NOTIFICATION_ACTION", "WIDGET", "SYSTEM_AUTO"
-    val status: String, // "SUCCESS", "WARNING_ISSUED", "EXPIRED", "DISPATCH_TRIGGERED", "DISPATCH_FAILED"
+    val status: String, // "SUCCESS", "WARNING_ISSUED", "GRACE_PERIOD", "EXPIRED", "DISPATCH_TRIGGERED", "DISPATCH_FAILED"
     val details: String? = null
 )
 
@@ -84,6 +95,7 @@ data class EmergencyMessage(
 enum class TimerStatus {
     ACTIVE,
     WARNING,
+    GRACE_PERIOD,
     EXPIRED
 }
 
@@ -94,12 +106,13 @@ data class TimerEvaluation(
     val status: TimerStatus,
     val remainingMinutes: Long,
     val elapsedMinutes: Long,
+    val remainingGraceMinutes: Long = 0L,
     val expiryTimestampEpochMillis: Long,
     val lastCheckInTimestampEpochMillis: Long
 )
 
 /**
- * Scheduled notification milestone threshold (75%, 50%, 25%, 10%, 1h remaining).
+ * Scheduled notification milestone threshold.
  */
 data class MilestoneThreshold(
     val milestoneName: String,

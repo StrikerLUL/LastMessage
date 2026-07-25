@@ -31,9 +31,8 @@ import java.io.File
 
 /**
  * SettingsScreen Jetpack Compose layout presenter for LastMessage.
- * Provides controls for language selection (Deutsch / English), countdown timer intervals,
- * emergency contacts, dispatch strategy, encrypted SMTP credentials, image attachments,
- * fail-safe redundancy settings (Boot Recovery, Low Battery Guardian, Self-Hosted Watchdog), and live testing.
+ * Provides controls for language selection (DE / EN), countdown timer intervals, configurable Grace Period (Gnadenfrist),
+ * emergency contacts, dispatch strategy, encrypted SMTP credentials, image attachments, fail-safe redundancy settings, and live testing.
  */
 class SettingsScreen(
     private val viewModel: SettingsViewModel
@@ -69,6 +68,9 @@ class SettingsScreen(
 
         var selectedIntervalHours by remember {
             mutableStateOf((config.timerIntervalMinutes / 60).toString())
+        }
+        var selectedGraceHours by remember {
+            mutableStateOf((config.gracePeriodMinutes / 60).toString())
         }
         var selectedDispatchMethod by remember {
             mutableStateOf(config.primaryDispatchMethod)
@@ -114,6 +116,7 @@ class SettingsScreen(
             enableBootRecovery = config.enableBootRecovery
             enableBatteryWarnings = config.enableBatteryWarnings
             enableCloudWatchdog = config.enableCloudWatchdog
+            selectedGraceHours = (config.gracePeriodMinutes / 60).toString()
             if (watchdogPingUrl.isBlank()) watchdogPingUrl = config.watchdogPingUrl
         }
         LaunchedEffect(smtpState) {
@@ -245,9 +248,10 @@ class SettingsScreen(
                             onClick = {
                                 selectedLanguage = "DE"
                                 val mins = selectedIntervalHours.toLong() * 60
+                                val graceMins = selectedGraceHours.toLong() * 60
                                 viewModel.updateConfig(
                                     mins, selectedDispatchMethod, 3, true,
-                                    "DE", enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl
+                                    "DE", enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins
                                 )
                             },
                             label = { Text("Deutsch 🇩🇪", color = Color.White) },
@@ -259,9 +263,10 @@ class SettingsScreen(
                             onClick = {
                                 selectedLanguage = "EN"
                                 val mins = selectedIntervalHours.toLong() * 60
+                                val graceMins = selectedGraceHours.toLong() * 60
                                 viewModel.updateConfig(
                                     mins, selectedDispatchMethod, 3, true,
-                                    "EN", enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl
+                                    "EN", enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins
                                 )
                             },
                             label = { Text("English 🇬🇧", color = Color.White) },
@@ -298,12 +303,69 @@ class SettingsScreen(
                                 onClick = {
                                     selectedIntervalHours = hours
                                     val mins = hours.toLong() * 60
+                                    val graceMins = selectedGraceHours.toLong() * 60
                                     viewModel.updateConfig(
                                         mins, selectedDispatchMethod, 3, true,
-                                        selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl
+                                        selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins
                                     )
                                 },
                                 label = { Text("${hours}h", color = Color.White) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Section 1B: GNADENFRIST / GRACE PERIOD (SAFETY BUFFER)
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Default.Timer, contentDescription = null, tint = Color(0xFFFF7043))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (isEn) "SAFETY GRACE PERIOD (AFTER TIMER EXPIRES)" else "GNADENFRIST (NACH COUNTDOWN-ABLAUF)",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFF7043)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Text(
+                        text = if (isEn)
+                            "After the main timer expires, emergency alerts are NOT sent immediately. You get an additional grace buffer period with hourly push warnings to check in or cancel!"
+                        else
+                            "Nach Ablauf des Haupt-Timers wird der Notfall-Ruf NOTSCHUTZ-MÄSSIG verzögert. Sie erhalten stündliche Warn-Pushs zum Abbrechen!",
+                        fontSize = 11.sp,
+                        color = Color.LightGray,
+                        lineHeight = 15.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        listOf("0" to "0h", "1" to "1h", "3" to "3h", "6" to "6h", "12" to "12h", "24" to "24h").forEach { (hours, label) ->
+                            FilterChip(
+                                selected = selectedGraceHours == hours,
+                                onClick = {
+                                    selectedGraceHours = hours
+                                    val mins = selectedIntervalHours.toLong() * 60
+                                    val graceMins = hours.toLong() * 60
+                                    viewModel.updateConfig(
+                                        mins, selectedDispatchMethod, 3, true,
+                                        selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins
+                                    )
+                                },
+                                label = { Text(if (hours == "0") (if (isEn) "Instant" else "Sofort") else label, color = Color.White, fontSize = 11.sp) }
                             )
                         }
                     }
@@ -346,7 +408,8 @@ class SettingsScreen(
                             onCheckedChange = {
                                 enableBootRecovery = it
                                 val mins = selectedIntervalHours.toLong() * 60
-                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, it, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl)
+                                val graceMins = selectedGraceHours.toLong() * 60
+                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, it, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins)
                             }
                         )
                     }
@@ -368,7 +431,8 @@ class SettingsScreen(
                             onCheckedChange = {
                                 enableBatteryWarnings = it
                                 val mins = selectedIntervalHours.toLong() * 60
-                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, it, enableCloudWatchdog, watchdogPingUrl)
+                                val graceMins = selectedGraceHours.toLong() * 60
+                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, it, enableCloudWatchdog, watchdogPingUrl, graceMins)
                             }
                         )
                     }
@@ -392,7 +456,8 @@ class SettingsScreen(
                             onCheckedChange = {
                                 enableCloudWatchdog = it
                                 val mins = selectedIntervalHours.toLong() * 60
-                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, it, watchdogPingUrl)
+                                val graceMins = selectedGraceHours.toLong() * 60
+                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, it, watchdogPingUrl, graceMins)
                             }
                         )
                     }
@@ -477,7 +542,8 @@ class SettingsScreen(
                                 onClick = {
                                     selectedDispatchMethod = key
                                     val mins = selectedIntervalHours.toLong() * 60
-                                    viewModel.updateConfig(mins, key, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl)
+                                    val graceMins = selectedGraceHours.toLong() * 60
+                                    viewModel.updateConfig(mins, key, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins)
                                 },
                                 label = { Text(label, color = Color.White) },
                                 modifier = Modifier.fillMaxWidth()
@@ -918,9 +984,11 @@ class SettingsScreen(
                     val cleanPassword = smtpPassword.trim()
                     val cleanRecipient = recipientEmail.trim()
 
+                    val graceMins = selectedGraceHours.toLong() * 60
+
                     viewModel.updateConfig(
                         selectedIntervalHours.toLong() * 60, selectedDispatchMethod, 3, true,
-                        selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl
+                        selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins
                     )
                     viewModel.addEmergencyContact(recipientName, recipientPhone, cleanRecipient, 1)
                     viewModel.saveSmtpCredentials(cleanHost, port, cleanUser, cleanPassword, true)

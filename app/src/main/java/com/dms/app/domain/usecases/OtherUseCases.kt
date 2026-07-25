@@ -2,14 +2,15 @@ package com.dms.app.domain.usecases
 
 import com.dms.app.domain.interfaces.*
 import com.dms.app.domain.models.*
+import com.dms.app.services.timer.TimerEngine
 import java.time.Instant
 
 /**
- * EvaluateTimerUseCase inspects stored check-in state and calculates current status.
+ * EvaluateTimerUseCase inspects stored check-in state and calculates current status (including Grace Period).
  */
 class EvaluateTimerUseCase(
     private val storage: ISecureStorage,
-    private val timerEngine: ITimerEngine
+    private val timerEngine: TimerEngine = TimerEngine()
 ) {
     fun evaluateCurrentStatus(currentTimeIso: String = Instant.now().toString()): TimerEvaluation {
         val config = storage.getConfig()
@@ -22,7 +23,12 @@ class EvaluateTimerUseCase(
         }
         val currentEpochMillis = Instant.parse(currentTimeIso).toEpochMilli()
 
-        return timerEngine.evaluateStatus(lastEpochMillis, config.timerIntervalMinutes, currentEpochMillis)
+        return timerEngine.evaluateStatusWithGrace(
+            lastCheckInEpochMillis = lastEpochMillis,
+            intervalMinutes = config.timerIntervalMinutes,
+            gracePeriodMinutes = config.gracePeriodMinutes,
+            currentTimeEpochMillis = currentEpochMillis
+        )
     }
 }
 

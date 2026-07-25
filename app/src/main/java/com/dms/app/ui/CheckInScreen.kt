@@ -25,8 +25,8 @@ import com.dms.app.domain.models.TimerStatus
 
 /**
  * CheckInScreen UI representation and Jetpack Compose layout presenter.
- * Renders countdown timer state, status badges (ACTIVE / WARNING / EXPIRED),
- * language-aware dynamic labels (DE / EN), and primary "I Am Alive" check-in button.
+ * Renders countdown timer state, status badges (ACTIVE / WARNING / GRACE_PERIOD / EXPIRED),
+ * Grace Period (Gnadenfrist) remaining hours countdown, and primary "I Am Alive" check-in button.
  */
 class CheckInScreen(
     private val viewModel: CheckInViewModel
@@ -38,13 +38,17 @@ class CheckInScreen(
         val timerEval by viewModel.timerState.collectAsState()
         val userMessage by viewModel.userMessage.collectAsState()
 
-        val hoursRemaining = timerEval.remainingMinutes / 60
-        val minsRemaining = timerEval.remainingMinutes % 60
+        val isGracePeriod = timerEval.status == TimerStatus.GRACE_PERIOD
+
+        val displayMinutes = if (isGracePeriod) timerEval.remainingGraceMinutes else timerEval.remainingMinutes
+        val hoursRemaining = displayMinutes / 60
+        val minsRemaining = displayMinutes % 60
         val formattedCountdown = String.format("%02dh %02dm", hoursRemaining, minsRemaining)
 
         val statusColor = when (timerEval.status) {
             TimerStatus.ACTIVE -> Color(0xFF4CAF50)
             TimerStatus.WARNING -> Color(0xFFFF9800)
+            TimerStatus.GRACE_PERIOD -> Color(0xFFFF5722)
             TimerStatus.EXPIRED -> Color(0xFFF44336)
         }
 
@@ -97,7 +101,9 @@ class CheckInScreen(
                     .fillMaxWidth()
                     .padding(vertical = 16.dp),
                 shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (isGracePeriod) Color(0xFF3E2723) else Color(0xFF1E1E1E)
+                ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
             ) {
                 Column(
@@ -124,10 +130,10 @@ class CheckInScreen(
                             )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = timerEval.status.name,
+                                text = if (isGracePeriod) "🚨 GNADENFRIST / GRACE PERIOD" else timerEval.status.name,
                                 color = animatedColor,
                                 fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
+                                fontSize = 13.sp
                             )
                         }
                     }
@@ -135,10 +141,10 @@ class CheckInScreen(
                     Spacer(modifier = Modifier.height(24.dp))
 
                     Text(
-                        text = "VERBLEIBENDE ZEIT / REMAINING TIME",
+                        text = if (isGracePeriod) "VERBLEIBENDE GNADENFRIST / GRACE TIME" else "VERBLEIBENDE ZEIT / REMAINING TIME",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = Color.Gray,
+                        color = if (isGracePeriod) Color(0xFFFFAB91) else Color.Gray,
                         letterSpacing = 1.2.sp
                     )
 
@@ -154,9 +160,12 @@ class CheckInScreen(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Text(
-                        text = "Vollständig lokal & verschlüsselt auf dem Gerät\n100% Local & AES-256 Encrypted",
+                        text = if (isGracePeriod)
+                            "🚨 Notfall-Countdown abgelaufen! Jetzt einchecken, um Notfall-Versand abzubrechen!"
+                        else
+                            "Vollständig lokal & verschlüsselt auf dem Gerät\n100% Local & AES-256 Encrypted",
                         fontSize = 11.sp,
-                        color = Color(0xFFB0BEC5),
+                        color = if (isGracePeriod) Color(0xFFFFCCBC) else Color(0xFFB0BEC5),
                         textAlign = TextAlign.Center,
                         lineHeight = 16.sp
                     )
@@ -184,7 +193,9 @@ class CheckInScreen(
                         .fillMaxWidth()
                         .height(64.dp),
                     shape = RoundedCornerShape(18.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isGracePeriod) Color(0xFFD84315) else Color(0xFF2E7D32)
+                    )
                 ) {
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
@@ -193,7 +204,7 @@ class CheckInScreen(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "ICH BIN NOCH DA / I AM ALIVE",
+                        text = if (isGracePeriod) "⚡ NOTFALL-ABBRUCH & CHECK-IN" else "ICH BIN NOCH DA / I AM ALIVE",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 0.5.sp
