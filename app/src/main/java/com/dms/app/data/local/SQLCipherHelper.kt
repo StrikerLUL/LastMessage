@@ -14,7 +14,7 @@ import java.time.Instant
 class SQLCipherHelper(
     context: Context? = null,
     dbName: String = "dms_app.db"
-) : SQLiteOpenHelper(context, dbName, null, 6) {
+) : SQLiteOpenHelper(context, dbName, null, 7) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -35,6 +35,8 @@ class SQLCipherHelper(
                 app_pin TEXT NOT NULL DEFAULT '',
                 panic_pin TEXT NOT NULL DEFAULT '',
                 auto_delete_after_dispatch INTEGER NOT NULL DEFAULT 0,
+                enable_gps_location INTEGER NOT NULL DEFAULT 0,
+                last_known_location_url TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -88,6 +90,7 @@ class SQLCipherHelper(
                 body_template TEXT NOT NULL,
                 contains_location INTEGER NOT NULL,
                 attachment_paths TEXT NOT NULL DEFAULT '',
+                audio_note_path TEXT NOT NULL DEFAULT '',
                 last_updated TEXT NOT NULL
             );
             """.trimIndent()
@@ -120,6 +123,8 @@ class SQLCipherHelper(
             put("app_pin", defaultConfig.appPin)
             put("panic_pin", defaultConfig.panicPin)
             put("auto_delete_after_dispatch", if (defaultConfig.autoDeleteAfterDispatch) 1 else 0)
+            put("enable_gps_location", if (defaultConfig.enableGpsLocation) 1 else 0)
+            put("last_known_location_url", defaultConfig.lastKnownLocationUrl)
             put("created_at", defaultConfig.createdAt)
             put("updated_at", defaultConfig.updatedAt)
         }
@@ -131,6 +136,7 @@ class SQLCipherHelper(
             put("body_template", "EMERGENCY: User failed to check in with LastMessage application.")
             put("contains_location", 0)
             put("attachment_paths", "")
+            put("audio_note_path", "")
             put("last_updated", Instant.now().toString())
         }
         db.insertWithOnConflict("emergency_messages", null, cvMsg, SQLiteDatabase.CONFLICT_REPLACE)
@@ -173,13 +179,21 @@ class SQLCipherHelper(
             } catch (ignored: Exception) {
             }
         }
+        if (oldVersion < 7) {
+            try {
+                db.execSQL("ALTER TABLE app_config ADD COLUMN enable_gps_location INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE app_config ADD COLUMN last_known_location_url TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE emergency_messages ADD COLUMN audio_note_path TEXT NOT NULL DEFAULT ''")
+            } catch (ignored: Exception) {
+            }
+        }
     }
 
     @Synchronized
     fun getAppConfig(): DmsConfig {
         try {
             val db = readableDatabase
-            db.rawQuery("SELECT id, timer_interval_minutes, primary_dispatch_method, retry_count, is_active, language, enable_boot_recovery, enable_battery_warnings, enable_cloud_watchdog, watchdog_ping_url, grace_period_minutes, enable_biometric_lock, app_pin, panic_pin, auto_delete_after_dispatch, created_at, updated_at FROM app_config WHERE id = 1", null).use { cursor ->
+            db.rawQuery("SELECT id, timer_interval_minutes, primary_dispatch_method, retry_count, is_active, language, enable_boot_recovery, enable_battery_warnings, enable_cloud_watchdog, watchdog_ping_url, grace_period_minutes, enable_biometric_lock, app_pin, panic_pin, auto_delete_after_dispatch, enable_gps_location, last_known_location_url, created_at, updated_at FROM app_config WHERE id = 1", null).use { cursor ->
                 if (cursor.moveToFirst()) {
                     return DmsConfig(
                         id = cursor.getInt(0),
@@ -197,8 +211,10 @@ class SQLCipherHelper(
                         appPin = cursor.getString(12) ?: "",
                         panicPin = cursor.getString(13) ?: "",
                         autoDeleteAfterDispatch = cursor.getInt(14) == 1,
-                        createdAt = cursor.getString(15),
-                        updatedAt = cursor.getString(16)
+                        enableGpsLocation = cursor.getInt(15) == 1,
+                        lastKnownLocationUrl = cursor.getString(16) ?: "",
+                        createdAt = cursor.getString(17),
+                        updatedAt = cursor.getString(18)
                     )
                 }
             }
@@ -227,6 +243,8 @@ class SQLCipherHelper(
                 put("app_pin", config.appPin)
                 put("panic_pin", config.panicPin)
                 put("auto_delete_after_dispatch", if (config.autoDeleteAfterDispatch) 1 else 0)
+                put("enable_gps_location", if (config.enableGpsLocation) 1 else 0)
+                put("last_known_location_url", config.lastKnownLocationUrl)
                 put("created_at", config.createdAt)
                 put("updated_at", Instant.now().toString())
             }
@@ -343,7 +361,7 @@ class SQLCipherHelper(
     fun getEmergencyMessage(): EmergencyMessage {
         try {
             val db = readableDatabase
-            db.rawQuery("SELECT id, body_template, contains_location, attachment_paths, last_updated FROM emergency_messages WHERE id = 1", null).use { cursor ->
+            db.rawQuery("SELECT id, body_template, contains_location, attachment_paths, audio_note_path, last_updated FROM emergency_messages WHERE id = 1", null).use { cursor ->
                 if (cursor.moveToFirst()) {
                     val rawPaths = cursor.getString(3) ?: ""
                     val pathsList = if (rawPaths.isNotBlank()) rawPaths.split(";").filter { it.isNotBlank() } else emptyList()
@@ -352,7 +370,8 @@ class SQLCipherHelper(
                         bodyTemplate = cursor.getString(1),
                         containsLocation = cursor.getInt(2) == 1,
                         attachmentPaths = pathsList,
-                        lastUpdated = cursor.getString(4)
+                        audioNotePath = cursor.getString(4) ?: "",
+                        lastUpdated = cursor.getString(5)
                     )
                 }
             }
@@ -363,6 +382,7 @@ class SQLCipherHelper(
             bodyTemplate = "EMERGENCY: User failed to check in with LastMessage application.",
             containsLocation = false,
             attachmentPaths = emptyList(),
+            audioNotePath = "",
             lastUpdated = Instant.now().toString()
         )
     }
@@ -377,6 +397,7 @@ class SQLCipherHelper(
                 put("body_template", message.bodyTemplate)
                 put("contains_location", if (message.containsLocation) 1 else 0)
                 put("attachment_paths", pathsJoined)
+                put("audio_note_path", message.audioNotePath)
                 put("last_updated", Instant.now().toString())
             }
             db.insertWithOnConflict("emergency_messages", null, cv, SQLiteDatabase.CONFLICT_REPLACE)

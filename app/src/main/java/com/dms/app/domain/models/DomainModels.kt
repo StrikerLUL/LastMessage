@@ -4,7 +4,7 @@ import java.time.Instant
 
 /**
  * Global application timer intervals, dispatch preferences, language settings,
- * grace period settings, biometric/PIN security settings, Panic PIN, auto-delete, and fail-safe redundancy settings.
+ * grace period settings, biometric/PIN security settings, Panic PIN, auto-delete, GPS location settings, and fail-safe redundancy settings.
  */
 data class DmsConfig(
     val id: Int = 1,
@@ -22,6 +22,8 @@ data class DmsConfig(
     val appPin: String = "",
     val panicPin: String = "", // Panic/Duress PIN: Feigns check-in success, secretly triggers emergency dispatch immediately!
     val autoDeleteAfterDispatch: Boolean = false, // Auto-delete sensitive message body & image attachments after dispatch!
+    val enableGpsLocation: Boolean = false, // Optional GPS location appending in emergency SMS/Email!
+    val lastKnownLocationUrl: String = "", // Saved Google Maps location URL recorded at last check-in!
     val createdAt: String = Instant.now().toString(),
     val updatedAt: String = Instant.now().toString()
 ) {
@@ -83,13 +85,14 @@ data class CheckInLog(
 )
 
 /**
- * Emergency message template and attached local image files dispatched to emergency contacts.
+ * Emergency message template, attached local image files, and optional voice audio note dispatched to emergency contacts.
  */
 data class EmergencyMessage(
     val id: Int = 1,
     val bodyTemplate: String,
     val containsLocation: Boolean = false,
     val attachmentPaths: List<String> = emptyList(),
+    val audioNotePath: String = "", // Path to recorded .m4a audio voice note!
     val lastUpdated: String = Instant.now().toString()
 )
 

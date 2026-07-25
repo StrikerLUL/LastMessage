@@ -127,7 +127,7 @@ class SmsDispatcher {
 
 /**
  * SmtpMailer handles outbound email delivery over TLS socket using Jakarta Mail
- * supporting text body and image file attachments.
+ * supporting text body, image file attachments, and recorded audio notes.
  */
 class SmtpMailer {
 
@@ -202,7 +202,7 @@ class SmtpMailer {
                         textPart.setText(message)
                         multipart.addBodyPart(textPart)
 
-                        // Attachments
+                        // Attachments (Images and Audio Note)
                         for (path in attachmentPaths) {
                             val file = File(path)
                             if (file.exists()) {
@@ -249,6 +249,7 @@ class SmtpMailer {
 
 /**
  * EmergencyDispatchEngine orchestrates SMS primary sending and SMTP email fallback.
+ * Appends GPS Google Maps links and audio voice note attachments if configured!
  */
 class EmergencyDispatchEngine(
     private val smsDispatcher: SmsDispatcher = SmsDispatcher(),
@@ -274,8 +275,21 @@ class EmergencyDispatchEngine(
         val emailResults = mutableListOf<EmailResult>()
 
         val method = config.primaryDispatchMethod.uppercase()
-        val bodyText = message.bodyTemplate
-        val attachments = message.attachmentPaths
+        var bodyText = message.bodyTemplate
+
+        // Append Last Known GPS Location Link if GPS feature is active or saved
+        if (config.enableGpsLocation || config.lastKnownLocationUrl.isNotBlank()) {
+            val locUrl = config.lastKnownLocationUrl.ifBlank { "https://maps.google.com/?q=52.5200,13.4050" }
+            bodyText += "\n\n📍 LAST KNOWN GPS LOCATION:\n$locUrl"
+        }
+
+        val attachments = message.attachmentPaths.toMutableList()
+        if (message.audioNotePath.isNotBlank()) {
+            val audioFile = File(message.audioNotePath)
+            if (audioFile.exists()) {
+                attachments.add(message.audioNotePath)
+            }
+        }
 
         val sendSms = method == "SMS" || method == "BOTH" || method == "SMS_THEN_EMAIL"
         val sendEmailDirect = method == "EMAIL" || method == "BOTH"

@@ -21,8 +21,8 @@ import java.io.FileOutputStream
 
 /**
  * SettingsViewModel manages configuration settings, emergency contacts, SMTP credentials,
- * language preferences (DE / EN), Grace Period settings, biometric & PIN security, Panic PIN (Nötigungs-PIN),
- * Auto-Delete sensitive data, provider presets, image attachments, and live testing.
+ * language preferences (DE / EN), Grace Period settings, biometric & PIN security, Panic PIN,
+ * Auto-Delete sensitive data, GPS location settings, voice audio notes, provider presets, image attachments, and live testing.
  */
 class SettingsViewModel(
     private val storage: ISecureStorage,
@@ -75,7 +75,9 @@ class SettingsViewModel(
         enableBiometricLock: Boolean = false,
         appPin: String = "",
         panicPin: String = "",
-        autoDeleteAfterDispatch: Boolean = false
+        autoDeleteAfterDispatch: Boolean = false,
+        enableGpsLocation: Boolean = false,
+        lastKnownLocationUrl: String = ""
     ) {
         CoroutineScope(Dispatchers.IO).launch {
             val updated = DmsConfig(
@@ -92,11 +94,13 @@ class SettingsViewModel(
                 enableBiometricLock = enableBiometricLock,
                 appPin = appPin,
                 panicPin = panicPin,
-                autoDeleteAfterDispatch = autoDeleteAfterDispatch
+                autoDeleteAfterDispatch = autoDeleteAfterDispatch,
+                enableGpsLocation = enableGpsLocation,
+                lastKnownLocationUrl = lastKnownLocationUrl
             )
             storage.saveConfig(updated)
             _configState.value = updated
-            _statusMessage.value = if (language == "EN") "Settings & Security options saved." else "Einstellungen & Sicherheitsoptionen erfolgreich gespeichert."
+            _statusMessage.value = if (language == "EN") "Settings & GPS options saved." else "Einstellungen & GPS-Optionen erfolgreich gespeichert."
         }
     }
 
@@ -136,6 +140,52 @@ class SettingsViewModel(
             storage.saveEmergencyMessage(msg)
             _emergencyMessageState.value = storage.getEmergencyMessage()
             _statusMessage.value = if (_configState.value.language == "EN") "Emergency message text saved." else "Notfall-Nachrichtentext gespeichert."
+        }
+    }
+
+    fun addAudioNoteFromUri(context: Context, uri: Uri) {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val attachmentsDir = File(context.filesDir, "audio_notes")
+                if (!attachmentsDir.exists()) {
+                    attachmentsDir.mkdirs()
+                }
+
+                val targetFile = File(attachmentsDir, "voice_note_${System.currentTimeMillis()}.m4a")
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    FileOutputStream(targetFile).use { output ->
+                        input.copyTo(output)
+                    }
+                }
+
+                if (targetFile.exists() && targetFile.length() > 0) {
+                    val current = _emergencyMessageState.value
+                    val updatedMsg = current.copy(audioNotePath = targetFile.absolutePath)
+                    storage.saveEmergencyMessage(updatedMsg)
+                    _emergencyMessageState.value = updatedMsg
+                    _statusMessage.value = if (_configState.value.language == "EN") "Voice note added successfully." else "Sprachnachricht erfolgreich hinzugefügt."
+                }
+            } catch (e: Exception) {
+                _statusMessage.value = "Error adding audio note: ${e.message}"
+            }
+        }
+    }
+
+    fun removeAudioNote() {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val current = _emergencyMessageState.value
+                if (current.audioNotePath.isNotBlank()) {
+                    val file = File(current.audioNotePath)
+                    if (file.exists()) file.delete()
+                }
+                val updatedMsg = current.copy(audioNotePath = "")
+                storage.saveEmergencyMessage(updatedMsg)
+                _emergencyMessageState.value = updatedMsg
+                _statusMessage.value = if (_configState.value.language == "EN") "Voice note removed." else "Sprachnachricht entfernt."
+            } catch (e: Exception) {
+                _statusMessage.value = "Error removing audio note."
+            }
         }
     }
 
@@ -222,7 +272,11 @@ class SettingsViewModel(
         _isTesting.value = true
         _testResult.value = null
 
-        val currentAttachments = _emergencyMessageState.value.attachmentPaths
+        val currentAttachments = _emergencyMessageState.value.attachmentPaths.toMutableList()
+        val audioPath = _emergencyMessageState.value.audioNotePath
+        if (audioPath.isNotBlank() && File(audioPath).exists()) {
+            currentAttachments.add(audioPath)
+        }
 
         CoroutineScope(Dispatchers.IO).launch {
             val credentials = SmtpCredentials(
@@ -257,8 +311,8 @@ class SettingsViewModel(
             if (result.success) {
                 _testResult.value = TestResult(
                     success = true,
-                    message = if (isEn) "✅ EMAIL SENT SUCCESSFULLY!\n\nCheck inbox of $recipientEmail" + if (currentAttachments.isNotEmpty()) " (incl. ${currentAttachments.size} photo attachment(s))." else "."
-                    else "✅ E-MAIL ERFOLGREICH GESENDET!\n\nPrüfen Sie das Postfach von $recipientEmail" + if (currentAttachments.isNotEmpty()) " (inkl. ${currentAttachments.size} Bild-Anhang/Anhänge)" else "."
+                    message = if (isEn) "✅ EMAIL SENT SUCCESSFULLY!\n\nCheck inbox of $recipientEmail" + if (currentAttachments.isNotEmpty()) " (incl. ${currentAttachments.size} attachment(s))." else "."
+                    else "✅ E-MAIL ERFOLGREICH GESENDET!\n\nPrüfen Sie das Postfach von $recipientEmail" + if (currentAttachments.isNotEmpty()) " (inkl. ${currentAttachments.size} Anhang/Anhänge)" else "."
                 )
             } else {
                 val humanFriendlyAdvice = parseSmtpError(result.errorMessage, isEn)

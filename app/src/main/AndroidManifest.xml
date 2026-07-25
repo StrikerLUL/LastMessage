@@ -5,6 +5,13 @@
     <!-- SMS Dispatch Permission for Emergency Alerts -->
     <uses-permission android:name="android.permission.SEND_SMS" />
 
+    <!-- GPS Location Permissions for Optional Maps Link in Emergency Dispatch -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
+    <!-- Audio Recording Permission for Optional Emergency Voice Note -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <!-- Boot Completed Receivers for Rescheduling Alarms & Workers after Reboot -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.LOCKED_BOOT_COMPLETED" />
