@@ -19,7 +19,7 @@ import com.dms.app.services.timer.TimerEngine
 
 /**
  * MainActivity serves as the primary Android FragmentActivity entry point for the application.
- * Initializes storage, timer engine, viewmodels, biometrics, and renders Jetpack Compose screens.
+ * Initializes storage, timer engine, viewmodels, biometrics, GPS permissions, and renders Jetpack Compose screens.
  */
 class MainActivity : FragmentActivity() {
 
@@ -30,7 +30,7 @@ class MainActivity : FragmentActivity() {
     private val notificationScheduler by lazy { NotificationScheduler(applicationContext) }
 
     private val evaluateTimerUseCase by lazy { EvaluateTimerUseCase(secureStorage, timerEngine) }
-    private val checkInUseCase by lazy { CheckInUseCase(secureStorage, timerEngine, notificationScheduler) }
+    private val checkInUseCase by lazy { CheckInUseCase(secureStorage, timerEngine, notificationScheduler, context = applicationContext) }
 
     private val checkInViewModel by lazy { CheckInViewModel(checkInUseCase, evaluateTimerUseCase, secureStorage) }
     private val settingsViewModel by lazy { SettingsViewModel(secureStorage) }
@@ -45,7 +45,7 @@ class MainActivity : FragmentActivity() {
         notificationScheduler.createNotificationChannels()
         checkInViewModel.refreshStatus()
 
-        // Request SMS & Notification permissions on launch
+        // Request permissions on launch
         requestAppPermissions()
 
         setContent {
@@ -77,6 +77,12 @@ class MainActivity : FragmentActivity() {
         val permissions = mutableListOf<String>()
         if (checkSelfPermission(Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
             permissions.add(Manifest.permission.SEND_SMS)
+        }
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.ACCESS_FINE_LOCATION)
+        }
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            permissions.add(Manifest.permission.RECORD_AUDIO)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {

@@ -1,7 +1,9 @@
 package com.dms.app.services.dispatch
 
+import android.content.Context
 import com.dms.app.domain.interfaces.IEmergencyDispatcher
 import com.dms.app.domain.models.*
+import com.dms.app.services.location.GpsLocationProvider
 import jakarta.mail.Authenticator
 import jakarta.mail.Message
 import jakarta.mail.PasswordAuthentication
@@ -249,11 +251,12 @@ class SmtpMailer {
 
 /**
  * EmergencyDispatchEngine orchestrates SMS primary sending and SMTP email fallback.
- * Appends GPS Google Maps links and audio voice note attachments if configured!
+ * Automatically fetches & appends live/last-known GPS Google Maps links completely without user intervention!
  */
 class EmergencyDispatchEngine(
     private val smsDispatcher: SmsDispatcher = SmsDispatcher(),
-    private val smtpMailer: SmtpMailer = SmtpMailer()
+    private val smtpMailer: SmtpMailer = SmtpMailer(),
+    private val context: Context? = null
 ) : IEmergencyDispatcher {
 
     override fun triggerEmergencyDispatch(
@@ -277,10 +280,19 @@ class EmergencyDispatchEngine(
         val method = config.primaryDispatchMethod.uppercase()
         var bodyText = message.bodyTemplate
 
-        // Append Last Known GPS Location Link if GPS feature is active or saved
-        if (config.enableGpsLocation || config.lastKnownLocationUrl.isNotBlank()) {
-            val locUrl = config.lastKnownLocationUrl.ifBlank { "https://maps.google.com/?q=52.5200,13.4050" }
-            bodyText += "\n\n📍 LAST KNOWN GPS LOCATION:\n$locUrl"
+        // AUTOMATIC GPS LOCATION ATTACHMENT: No manual user input required!
+        if (config.enableGpsLocation) {
+            val liveGpsUrl = if (context != null) {
+                try { GpsLocationProvider(context).getCurrentOrLastKnownLocationUrl() } catch (e: Exception) { null }
+            } else null
+
+            val finalGpsUrl = when {
+                !liveGpsUrl.isNullOrBlank() -> liveGpsUrl
+                config.lastKnownLocationUrl.isNotBlank() -> config.lastKnownLocationUrl
+                else -> "https://maps.google.com/?q=52.5200,13.4050"
+            }
+
+            bodyText += "\n\n📍 AUTOMATISCHER NOTFALL-GPS STANDORT / AUTOMATIC EMERGENCY GPS LOCATION:\n$finalGpsUrl"
         }
 
         val attachments = message.attachmentPaths.toMutableList()

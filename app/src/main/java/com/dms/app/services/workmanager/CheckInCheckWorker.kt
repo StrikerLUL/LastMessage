@@ -17,7 +17,7 @@ import kotlinx.coroutines.withContext
 
 /**
  * CheckInCheckWorker runs periodic background timer evaluations (every 15 minutes).
- * Manages Grace Period (Gnadenfrist) warning push notifications and triggers emergency dispatch when expired.
+ * Automatically captures GPS coordinates and dispatches emergency alerts when expired.
  */
 class CheckInCheckWorker(
     appContext: Context,
@@ -30,7 +30,7 @@ class CheckInCheckWorker(
             val dbHelper = SQLCipherHelper(applicationContext)
             val secureStorage = SecureStorageService(keyStoreManager, dbHelper)
             val timerEngine = TimerEngine()
-            val emergencyDispatcher = EmergencyDispatchEngine()
+            val emergencyDispatcher = EmergencyDispatchEngine(context = applicationContext)
             val notificationScheduler = NotificationScheduler(applicationContext)
 
             val evaluateTimerUseCase = EvaluateTimerUseCase(secureStorage, timerEngine)
