@@ -16,7 +16,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -29,8 +28,8 @@ import com.dms.app.domain.models.TimerStatus
 
 /**
  * CheckInScreen UI representation and Jetpack Compose layout presenter.
- * Renders countdown timer state, status badges (ACTIVE / WARNING / GRACE_PERIOD / EXPIRED),
- * Panic PIN duress triggers, PIN/Biometric verification dialogs, and primary "I Am Alive" check-in button.
+ * Enforces App PIN / Biometric Lock Screen on startup, Panic PIN duress triggers,
+ * countdown timer state, status badges, and primary "I Am Alive" check-in button.
  */
 class CheckInScreen(
     private val viewModel: CheckInViewModel
@@ -41,12 +40,128 @@ class CheckInScreen(
     fun Content(onNavigateToSettings: () -> Unit) {
         val timerEval by viewModel.timerState.collectAsState()
         val userMessage by viewModel.userMessage.collectAsState()
+        val config by viewModel.configState.collectAsState()
+        val isAppLocked by viewModel.isAppLocked.collectAsState()
 
-        var showPinDialog by remember { mutableStateOf(false) }
-        var pendingAction by remember { mutableStateOf("CHECK_IN") }
-        var inputPin by remember { mutableStateOf("") }
-        var pinError by remember { mutableStateOf<String?>(null) }
+        val isEn = config.language == "EN"
 
+        var startupPinInput by remember { mutableStateOf("") }
+        var startupPinError by remember { mutableStateOf<String?>(null) }
+
+        // APP LOCK OVERLAY SCREEN (FULL-SCREEN LOCK)
+        if (isAppLocked) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF121212))
+                    .padding(32.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(28.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Surface(
+                            color = Color(0xFFEA80FC).copy(alpha = 0.15f),
+                            shape = CircleShape
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = null,
+                                tint = Color(0xFFEA80FC),
+                                modifier = Modifier
+                                    .padding(16.dp)
+                                    .size(42.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text(
+                            text = if (isEn) "LastMessage Locked" else "LastMessage Gesperrt",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = if (isEn) "Enter your App PIN or Panic PIN to continue:" else "Geben Sie Ihren App-PIN oder Nötigungs-PIN ein:",
+                            fontSize = 12.sp,
+                            color = Color.Gray,
+                            textAlign = TextAlign.Center
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        OutlinedTextField(
+                            value = startupPinInput,
+                            onValueChange = { startupPinInput = it.trim() },
+                            label = { Text(if (isEn) "Enter PIN" else "PIN eingeben") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                            visualTransformation = PasswordVisualTransformation(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color.White,
+                                unfocusedTextColor = Color.White
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        startupPinError?.let { err ->
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = err,
+                                color = Color(0xFFFF8A80),
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Button(
+                            onClick = {
+                                if (startupPinInput.isBlank()) {
+                                    startupPinError = if (isEn) "Please enter PIN!" else "Bitte PIN eingeben!"
+                                } else {
+                                    val success = viewModel.verifyStartupPin(startupPinInput)
+                                    if (success) {
+                                        startupPinInput = ""
+                                        startupPinError = null
+                                    } else {
+                                        startupPinError = if (isEn) "❌ Invalid PIN!" else "❌ Falscher PIN!"
+                                    }
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0288D1))
+                        ) {
+                            Icon(imageVector = Icons.Default.Lock, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isEn) "UNLOCK APP" else "APP ENTSPERREN",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
+                    }
+                }
+            }
+            return
+        }
+
+        // MAIN APP SCREEN CONTENT (WHEN UNLOCKED)
         val isGracePeriod = timerEval.status == TimerStatus.GRACE_PERIOD
 
         val displayMinutes = if (isGracePeriod) timerEval.remainingGraceMinutes else timerEval.remainingMinutes
@@ -62,85 +177,6 @@ class CheckInScreen(
         }
 
         val animatedColor by animateColorAsState(targetValue = statusColor, label = "statusColor")
-
-        // PIN / Security Dialog
-        if (showPinDialog) {
-            AlertDialog(
-                onDismissRequest = {
-                    showPinDialog = false
-                    inputPin = ""
-                    pinError = null
-                },
-                title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(imageVector = Icons.Default.Lock, contentDescription = null, tint = Color(0xFFEA80FC))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("PIN / Entsperren", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                    }
-                },
-                text = {
-                    Column {
-                        Text(
-                            text = "Bitte geben Sie Ihren App-PIN oder Nötigungs-PIN ein:",
-                            color = Color.LightGray,
-                            fontSize = 13.sp
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        OutlinedTextField(
-                            value = inputPin,
-                            onValueChange = { inputPin = it.trim() },
-                            label = { Text("PIN eingeben") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
-                            visualTransformation = PasswordVisualTransformation(),
-                            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White),
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        pinError?.let { err ->
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text(text = err, color = Color(0xFFFF8A80), fontSize = 12.sp)
-                        }
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            // Check Panic PIN first
-                            if (inputPin.isNotBlank() && inputPin == "9999") { // Panic PIN triggered!
-                                showPinDialog = false
-                                inputPin = ""
-                                pinError = null
-                                viewModel.performPanicCheckIn()
-                            } else if (inputPin.isNotBlank()) {
-                                showPinDialog = false
-                                inputPin = ""
-                                pinError = null
-                                if (pendingAction == "SETTINGS") {
-                                    onNavigateToSettings()
-                                } else {
-                                    viewModel.performCheckIn("MANUAL_APP")
-                                }
-                            } else {
-                                pinError = "Bitte PIN eingeben!"
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0288D1))
-                    ) {
-                        Text("Bestätigen")
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = {
-                        showPinDialog = false
-                        inputPin = ""
-                        pinError = null
-                    }) {
-                        Text("Abbrechen", color = Color.Gray)
-                    }
-                },
-                containerColor = Color(0xFF1E1E1E)
-            )
-        }
 
         Column(
             modifier = Modifier

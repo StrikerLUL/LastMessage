@@ -4,11 +4,11 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.*
+import androidx.fragment.app.FragmentActivity
 import com.dms.app.data.local.KeyStoreManager
 import com.dms.app.data.local.SQLCipherHelper
 import com.dms.app.domain.usecases.CheckInUseCase
@@ -18,10 +18,10 @@ import com.dms.app.services.storage.SecureStorageService
 import com.dms.app.services.timer.TimerEngine
 
 /**
- * MainActivity serves as the primary Android ComponentActivity entry point for the application.
- * Initializes storage, timer engine, viewmodels, and renders Jetpack Compose screens.
+ * MainActivity serves as the primary Android FragmentActivity entry point for the application.
+ * Initializes storage, timer engine, viewmodels, biometrics, and renders Jetpack Compose screens.
  */
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private val keyStoreManager by lazy { KeyStoreManager() }
     private val dbHelper by lazy { SQLCipherHelper(applicationContext) }
@@ -32,7 +32,7 @@ class MainActivity : ComponentActivity() {
     private val evaluateTimerUseCase by lazy { EvaluateTimerUseCase(secureStorage, timerEngine) }
     private val checkInUseCase by lazy { CheckInUseCase(secureStorage, timerEngine, notificationScheduler) }
 
-    private val checkInViewModel by lazy { CheckInViewModel(checkInUseCase, evaluateTimerUseCase) }
+    private val checkInViewModel by lazy { CheckInViewModel(checkInUseCase, evaluateTimerUseCase, secureStorage) }
     private val settingsViewModel by lazy { SettingsViewModel(secureStorage) }
 
     private val checkInScreen by lazy { CheckInScreen(checkInViewModel) }
@@ -66,6 +66,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        checkInViewModel.refreshStatus()
     }
 
     private fun requestAppPermissions() {
