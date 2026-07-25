@@ -62,7 +62,7 @@ class ScheduleNotificationsUseCase(
 
 /**
  * DispatchEmergencyUseCase triggers autonomous emergency SMS/Email dispatches.
- * Also performs Auto-Delete of sensitive emergency messages and attachment files if enabled!
+ * Performs thorough Auto-Delete of sensitive emergency message text, photos, and voice notes if enabled!
  */
 class DispatchEmergencyUseCase(
     private val storage: ISecureStorage,
@@ -87,25 +87,47 @@ class DispatchEmergencyUseCase(
 
         // AUTO-DELETE SENSITIVE DATA AFTER DISPATCH (if enabled)
         if (config.autoDeleteAfterDispatch && result.success) {
-            try {
-                // Delete photo attachment files from disk
-                for (path in message.attachmentPaths) {
-                    try {
-                        val file = File(path)
-                        if (file.exists()) file.delete()
-                    } catch (ignored: Exception) {}
-                }
-                // Clear message body & attachment list in storage
-                val clearedMsg = EmergencyMessage(
-                    id = 1,
-                    bodyTemplate = "[AUTO-DELETED AFTER EMERGENCY DISPATCH]",
-                    containsLocation = false,
-                    attachmentPaths = emptyList()
-                )
-                storage.saveEmergencyMessage(clearedMsg)
-            } catch (ignored: Exception) {}
+            purgeSensitiveEmergencyData(config.language)
         }
 
         return result
+    }
+
+    /**
+     * Purges all photo attachments, voice audio notes, and sensitive message body text from local device storage.
+     */
+    fun purgeSensitiveEmergencyData(language: String = "DE") {
+        try {
+            val message = storage.getEmergencyMessage()
+
+            // 1. Delete all photo attachment files on disk
+            for (path in message.attachmentPaths) {
+                try {
+                    val file = File(path)
+                    if (file.exists()) file.delete()
+                } catch (ignored: Exception) {}
+            }
+
+            // 2. Delete voice audio note file on disk
+            if (message.audioNotePath.isNotBlank()) {
+                try {
+                    val audioFile = File(message.audioNotePath)
+                    if (audioFile.exists()) audioFile.delete()
+                } catch (ignored: Exception) {}
+            }
+
+            // 3. Clear message body & file attachment paths in persistent encrypted storage
+            val clearedMsg = EmergencyMessage(
+                id = 1,
+                bodyTemplate = if (language == "EN")
+                    "[AUTOMATICALLY DELETED AFTER EMERGENCY DISPATCH]"
+                else
+                    "[NOTFALL-NACHRICHT NACH VERSAND AUTOMATISCH GELÖSCHT]",
+                containsLocation = false,
+                attachmentPaths = emptyList(),
+                audioNotePath = ""
+            )
+            storage.saveEmergencyMessage(clearedMsg)
+        } catch (ignored: Exception) {}
     }
 }

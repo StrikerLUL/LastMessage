@@ -7,6 +7,8 @@ import com.dms.app.domain.models.DmsConfig
 import com.dms.app.domain.models.EmergencyContact
 import com.dms.app.domain.models.EmergencyMessage
 import com.dms.app.domain.models.SmtpCredentials
+import com.dms.app.domain.usecases.DispatchEmergencyUseCase
+import com.dms.app.services.dispatch.EmergencyDispatchEngine
 import com.dms.app.services.dispatch.SmsDispatcher
 import com.dms.app.services.dispatch.SmtpMailer
 import com.dms.app.services.watchdog.WatchdogService
@@ -100,7 +102,7 @@ class SettingsViewModel(
             )
             storage.saveConfig(updated)
             _configState.value = updated
-            _statusMessage.value = if (language == "EN") "Settings & GPS options saved." else "Einstellungen & GPS-Optionen erfolgreich gespeichert."
+            _statusMessage.value = if (language == "EN") "Settings & Auto-Delete saved." else "Einstellungen & Auto-Löschen erfolgreich gespeichert."
         }
     }
 
@@ -309,10 +311,20 @@ class SettingsViewModel(
 
             _isTesting.value = false
             if (result.success) {
+                // Auto-delete sensitive files if feature is enabled
+                if (_configState.value.autoDeleteAfterDispatch) {
+                    val emergencyDispatcher = EmergencyDispatchEngine()
+                    val dispatchUseCase = DispatchEmergencyUseCase(storage, emergencyDispatcher)
+                    dispatchUseCase.purgeSensitiveEmergencyData(if (isEn) "EN" else "DE")
+                    refreshAllState()
+                }
+
                 _testResult.value = TestResult(
                     success = true,
-                    message = if (isEn) "✅ EMAIL SENT SUCCESSFULLY!\n\nCheck inbox of $recipientEmail" + if (currentAttachments.isNotEmpty()) " (incl. ${currentAttachments.size} attachment(s))." else "."
-                    else "✅ E-MAIL ERFOLGREICH GESENDET!\n\nPrüfen Sie das Postfach von $recipientEmail" + if (currentAttachments.isNotEmpty()) " (inkl. ${currentAttachments.size} Anhang/Anhänge)" else "."
+                    message = if (isEn)
+                        "✅ EMAIL SENT SUCCESSFULLY!\n\nCheck inbox of $recipientEmail" + if (_configState.value.autoDeleteAfterDispatch) "\n\n🔥 Auto-Delete: Emergency message & attachments wiped from device." else "."
+                    else
+                        "✅ E-MAIL ERFOLGREICH GESENDET!\n\nPrüfen Sie das Postfach von $recipientEmail" + if (_configState.value.autoDeleteAfterDispatch) "\n\n🔥 Auto-Delete: Notfall-Text & Anhänge wurden nach Versand lokal gelöscht." else "."
                 )
             } else {
                 val humanFriendlyAdvice = parseSmtpError(result.errorMessage, isEn)
@@ -345,6 +357,13 @@ class SettingsViewModel(
 
             _isTesting.value = false
             if (result.success) {
+                if (_configState.value.autoDeleteAfterDispatch) {
+                    val emergencyDispatcher = EmergencyDispatchEngine()
+                    val dispatchUseCase = DispatchEmergencyUseCase(storage, emergencyDispatcher)
+                    dispatchUseCase.purgeSensitiveEmergencyData(if (isEn) "EN" else "DE")
+                    refreshAllState()
+                }
+
                 _testResult.value = TestResult(
                     success = true,
                     message = if (isEn) "✅ TEST SMS SENT TO $phoneNumber!" else "✅ TEST-SMS WURDE AN $phoneNumber GESENDET!"
