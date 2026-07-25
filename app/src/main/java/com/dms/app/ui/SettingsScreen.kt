@@ -32,7 +32,8 @@ import java.io.File
 /**
  * SettingsScreen Jetpack Compose layout presenter for LastMessage.
  * Provides controls for language selection (DE / EN), countdown timer intervals, configurable Grace Period (Gnadenfrist),
- * emergency contacts, dispatch strategy, encrypted SMTP credentials, image attachments, fail-safe redundancy settings, and live testing.
+ * Biometric & PIN Lock, Panic PIN (Nötigungs-PIN), Auto-Delete sensitive data, emergency contacts, dispatch strategy,
+ * encrypted SMTP credentials, image attachments, fail-safe redundancy settings, and live testing.
  */
 class SettingsScreen(
     private val viewModel: SettingsViewModel
@@ -81,6 +82,11 @@ class SettingsScreen(
         var enableCloudWatchdog by remember { mutableStateOf(config.enableCloudWatchdog) }
         var watchdogPingUrl by remember { mutableStateOf(config.watchdogPingUrl) }
 
+        var enableBiometricLock by remember { mutableStateOf(config.enableBiometricLock) }
+        var appPin by remember { mutableStateOf(config.appPin) }
+        var panicPin by remember { mutableStateOf(config.panicPin) }
+        var autoDeleteAfterDispatch by remember { mutableStateOf(config.autoDeleteAfterDispatch) }
+
         var recipientName by remember {
             mutableStateOf(contacts.firstOrNull()?.recipientName ?: (if (isEn) "Emergency Contact" else "Notfall-Kontakt"))
         }
@@ -117,6 +123,10 @@ class SettingsScreen(
             enableBatteryWarnings = config.enableBatteryWarnings
             enableCloudWatchdog = config.enableCloudWatchdog
             selectedGraceHours = (config.gracePeriodMinutes / 60).toString()
+            enableBiometricLock = config.enableBiometricLock
+            if (appPin.isBlank()) appPin = config.appPin
+            if (panicPin.isBlank()) panicPin = config.panicPin
+            autoDeleteAfterDispatch = config.autoDeleteAfterDispatch
             if (watchdogPingUrl.isBlank()) watchdogPingUrl = config.watchdogPingUrl
         }
         LaunchedEffect(smtpState) {
@@ -251,7 +261,8 @@ class SettingsScreen(
                                 val graceMins = selectedGraceHours.toLong() * 60
                                 viewModel.updateConfig(
                                     mins, selectedDispatchMethod, 3, true,
-                                    "DE", enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins
+                                    "DE", enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins,
+                                    enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch
                                 )
                             },
                             label = { Text("Deutsch 🇩🇪", color = Color.White) },
@@ -266,11 +277,126 @@ class SettingsScreen(
                                 val graceMins = selectedGraceHours.toLong() * 60
                                 viewModel.updateConfig(
                                     mins, selectedDispatchMethod, 3, true,
-                                    "EN", enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins
+                                    "EN", enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins,
+                                    enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch
                                 )
                             },
                             label = { Text("English 🇬🇧", color = Color.White) },
                             modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Section 0B: SICHERHEIT, BIOMETRIE, PANIC-PIN & AUTO-DELETE
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Default.Lock, contentDescription = null, tint = Color(0xFFEA80FC))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (isEn) "SECURITY, BIOMETRICS & PANIC PIN" else "SICHERHEIT, BIOMETRIE & NÖTIGUNGS-PIN",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFEA80FC)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Biometric / PIN Lock Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(if (isEn) "🔒 App PIN & Biometric Protection" else "🔒 App PIN & Biometrischer Schutz", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
+                            Text(if (isEn) "Protects app settings and check-in with fingerprint / PIN." else "Schützt App-Einstellungen und Check-in vor fremdem Zugriff.", color = Color.Gray, fontSize = 11.sp, lineHeight = 15.sp)
+                        }
+                        Switch(
+                            checked = enableBiometricLock,
+                            onCheckedChange = {
+                                enableBiometricLock = it
+                                val mins = selectedIntervalHours.toLong() * 60
+                                val graceMins = selectedGraceHours.toLong() * 60
+                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins, it, appPin, panicPin, autoDeleteAfterDispatch)
+                            }
+                        )
+                    }
+
+                    if (enableBiometricLock) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = appPin,
+                            onValueChange = { appPin = it.trim() },
+                            label = { Text(if (isEn) "Main App PIN (e.g. 1234)" else "Haupt App-PIN (z.B. 1234)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                            visualTransformation = PasswordVisualTransformation(),
+                            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = Color(0xFF333333))
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // PANIC PIN / Nötigungs-PIN
+                    Column {
+                        Text(if (isEn) "🚨 Panic PIN (Duress Trigger)" else "🚨 Nötigungs-PIN (Panic PIN)", fontWeight = FontWeight.Bold, color = Color(0xFFFF8A80), fontSize = 13.sp)
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = if (isEn)
+                                "If forced to cancel the timer, enter this Panic PIN. The app feigns success, but secretly triggers emergency dispatch immediately in the background!"
+                            else
+                                "Falls Sie gezwungen werden, den Timer abzubrechen, geben Sie diesen PIN ein. Die App tut so als ob es klappt, löst aber heimlich im Hintergrund sofort den Notfall-Ruf aus!",
+                            color = Color.LightGray,
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        OutlinedTextField(
+                            value = panicPin,
+                            onValueChange = { panicPin = it.trim() },
+                            label = { Text(if (isEn) "Panic PIN (e.g. 9999)" else "Nötigungs-PIN (z.B. 9999)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                            visualTransformation = PasswordVisualTransformation(),
+                            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = Color(0xFF333333))
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Auto-Delete After Dispatch Toggle
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(if (isEn) "🔥 Auto-Delete Data After Dispatch" else "🔥 Notfall-Daten nach Versand löschen", fontWeight = FontWeight.Bold, color = Color(0xFFFFAB40), fontSize = 13.sp)
+                            Text(if (isEn) "Automatically purges emergency text & photo attachments from device after emergency dispatch." else "Löscht Notfall-Texte & Bilder nach erfolgreichem Notfall-Versand automatisch vom Gerät.", color = Color.Gray, fontSize = 11.sp, lineHeight = 15.sp)
+                        }
+                        Switch(
+                            checked = autoDeleteAfterDispatch,
+                            onCheckedChange = {
+                                autoDeleteAfterDispatch = it
+                                val mins = selectedIntervalHours.toLong() * 60
+                                val graceMins = selectedGraceHours.toLong() * 60
+                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, it)
+                            }
                         )
                     }
                 }
@@ -306,7 +432,8 @@ class SettingsScreen(
                                     val graceMins = selectedGraceHours.toLong() * 60
                                     viewModel.updateConfig(
                                         mins, selectedDispatchMethod, 3, true,
-                                        selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins
+                                        selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins,
+                                        enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch
                                     )
                                 },
                                 label = { Text("${hours}h", color = Color.White) }
@@ -362,7 +489,8 @@ class SettingsScreen(
                                     val graceMins = hours.toLong() * 60
                                     viewModel.updateConfig(
                                         mins, selectedDispatchMethod, 3, true,
-                                        selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins
+                                        selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins,
+                                        enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch
                                     )
                                 },
                                 label = { Text(if (hours == "0") (if (isEn) "Instant" else "Sofort") else label, color = Color.White, fontSize = 11.sp) }
@@ -409,7 +537,7 @@ class SettingsScreen(
                                 enableBootRecovery = it
                                 val mins = selectedIntervalHours.toLong() * 60
                                 val graceMins = selectedGraceHours.toLong() * 60
-                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, it, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins)
+                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, it, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch)
                             }
                         )
                     }
@@ -432,7 +560,7 @@ class SettingsScreen(
                                 enableBatteryWarnings = it
                                 val mins = selectedIntervalHours.toLong() * 60
                                 val graceMins = selectedGraceHours.toLong() * 60
-                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, it, enableCloudWatchdog, watchdogPingUrl, graceMins)
+                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, it, enableCloudWatchdog, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch)
                             }
                         )
                     }
@@ -457,7 +585,7 @@ class SettingsScreen(
                                 enableCloudWatchdog = it
                                 val mins = selectedIntervalHours.toLong() * 60
                                 val graceMins = selectedGraceHours.toLong() * 60
-                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, it, watchdogPingUrl, graceMins)
+                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, it, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch)
                             }
                         )
                     }
@@ -543,7 +671,7 @@ class SettingsScreen(
                                     selectedDispatchMethod = key
                                     val mins = selectedIntervalHours.toLong() * 60
                                     val graceMins = selectedGraceHours.toLong() * 60
-                                    viewModel.updateConfig(mins, key, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins)
+                                    viewModel.updateConfig(mins, key, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch)
                                 },
                                 label = { Text(label, color = Color.White) },
                                 modifier = Modifier.fillMaxWidth()
@@ -988,7 +1116,8 @@ class SettingsScreen(
 
                     viewModel.updateConfig(
                         selectedIntervalHours.toLong() * 60, selectedDispatchMethod, 3, true,
-                        selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins
+                        selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins,
+                        enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch
                     )
                     viewModel.addEmergencyContact(recipientName, recipientPhone, cleanRecipient, 1)
                     viewModel.saveSmtpCredentials(cleanHost, port, cleanUser, cleanPassword, true)

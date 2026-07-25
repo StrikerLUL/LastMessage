@@ -4,7 +4,7 @@ import java.time.Instant
 
 /**
  * Global application timer intervals, dispatch preferences, language settings,
- * grace period settings, and fail-safe redundancy settings.
+ * grace period settings, biometric/PIN security settings, Panic PIN, auto-delete, and fail-safe redundancy settings.
  */
 data class DmsConfig(
     val id: Int = 1,
@@ -18,6 +18,10 @@ data class DmsConfig(
     val enableBatteryWarnings: Boolean = true,
     val enableCloudWatchdog: Boolean = false,
     val watchdogPingUrl: String = "",
+    val enableBiometricLock: Boolean = false,
+    val appPin: String = "",
+    val panicPin: String = "", // Panic/Duress PIN: Feigns check-in success, secretly triggers emergency dispatch immediately!
+    val autoDeleteAfterDispatch: Boolean = false, // Auto-delete sensitive message body & image attachments after dispatch!
     val createdAt: String = Instant.now().toString(),
     val updatedAt: String = Instant.now().toString()
 ) {
@@ -73,7 +77,7 @@ data class SmtpCredentials(
 data class CheckInLog(
     val id: Long = 0L,
     val timestamp: String = Instant.now().toString(),
-    val method: String, // "MANUAL_APP", "NOTIFICATION_ACTION", "WIDGET", "SYSTEM_AUTO"
+    val method: String, // "MANUAL_APP", "PANIC_PIN_DURESS", "NOTIFICATION_ACTION", "WIDGET", "SYSTEM_AUTO"
     val status: String, // "SUCCESS", "WARNING_ISSUED", "GRACE_PERIOD", "EXPIRED", "DISPATCH_TRIGGERED", "DISPATCH_FAILED"
     val details: String? = null
 )

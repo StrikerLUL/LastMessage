@@ -46,6 +46,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.13.1")
     implementation("androidx.work:work-runtime-ktx:2.9.0")
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("androidx.biometric:biometric:1.1.0")
     implementation("org.eclipse.angus:jakarta.mail:2.0.3")
 
     // Jetpack Compose Dependencies

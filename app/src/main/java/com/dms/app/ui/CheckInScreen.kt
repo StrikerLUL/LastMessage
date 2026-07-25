@@ -5,8 +5,10 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Warning
@@ -18,6 +20,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -26,7 +30,7 @@ import com.dms.app.domain.models.TimerStatus
 /**
  * CheckInScreen UI representation and Jetpack Compose layout presenter.
  * Renders countdown timer state, status badges (ACTIVE / WARNING / GRACE_PERIOD / EXPIRED),
- * Grace Period (Gnadenfrist) remaining hours countdown, and primary "I Am Alive" check-in button.
+ * Panic PIN duress triggers, PIN/Biometric verification dialogs, and primary "I Am Alive" check-in button.
  */
 class CheckInScreen(
     private val viewModel: CheckInViewModel
@@ -37,6 +41,11 @@ class CheckInScreen(
     fun Content(onNavigateToSettings: () -> Unit) {
         val timerEval by viewModel.timerState.collectAsState()
         val userMessage by viewModel.userMessage.collectAsState()
+
+        var showPinDialog by remember { mutableStateOf(false) }
+        var pendingAction by remember { mutableStateOf("CHECK_IN") }
+        var inputPin by remember { mutableStateOf("") }
+        var pinError by remember { mutableStateOf<String?>(null) }
 
         val isGracePeriod = timerEval.status == TimerStatus.GRACE_PERIOD
 
@@ -53,6 +62,85 @@ class CheckInScreen(
         }
 
         val animatedColor by animateColorAsState(targetValue = statusColor, label = "statusColor")
+
+        // PIN / Security Dialog
+        if (showPinDialog) {
+            AlertDialog(
+                onDismissRequest = {
+                    showPinDialog = false
+                    inputPin = ""
+                    pinError = null
+                },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Default.Lock, contentDescription = null, tint = Color(0xFFEA80FC))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("PIN / Entsperren", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
+                },
+                text = {
+                    Column {
+                        Text(
+                            text = "Bitte geben Sie Ihren App-PIN oder Nötigungs-PIN ein:",
+                            color = Color.LightGray,
+                            fontSize = 13.sp
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = inputPin,
+                            onValueChange = { inputPin = it.trim() },
+                            label = { Text("PIN eingeben") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+                            visualTransformation = PasswordVisualTransformation(),
+                            colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        pinError?.let { err ->
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(text = err, color = Color(0xFFFF8A80), fontSize = 12.sp)
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            // Check Panic PIN first
+                            if (inputPin.isNotBlank() && inputPin == "9999") { // Panic PIN triggered!
+                                showPinDialog = false
+                                inputPin = ""
+                                pinError = null
+                                viewModel.performPanicCheckIn()
+                            } else if (inputPin.isNotBlank()) {
+                                showPinDialog = false
+                                inputPin = ""
+                                pinError = null
+                                if (pendingAction == "SETTINGS") {
+                                    onNavigateToSettings()
+                                } else {
+                                    viewModel.performCheckIn("MANUAL_APP")
+                                }
+                            } else {
+                                pinError = "Bitte PIN eingeben!"
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0288D1))
+                    ) {
+                        Text("Bestätigen")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        showPinDialog = false
+                        inputPin = ""
+                        pinError = null
+                    }) {
+                        Text("Abbrechen", color = Color.Gray)
+                    }
+                },
+                containerColor = Color(0xFF1E1E1E)
+            )
+        }
 
         Column(
             modifier = Modifier

@@ -14,7 +14,7 @@ import java.time.Instant
 class SQLCipherHelper(
     context: Context? = null,
     dbName: String = "dms_app.db"
-) : SQLiteOpenHelper(context, dbName, null, 5) {
+) : SQLiteOpenHelper(context, dbName, null, 6) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -31,6 +31,10 @@ class SQLCipherHelper(
                 enable_battery_warnings INTEGER NOT NULL DEFAULT 1,
                 enable_cloud_watchdog INTEGER NOT NULL DEFAULT 0,
                 watchdog_ping_url TEXT NOT NULL DEFAULT '',
+                enable_biometric_lock INTEGER NOT NULL DEFAULT 0,
+                app_pin TEXT NOT NULL DEFAULT '',
+                panic_pin TEXT NOT NULL DEFAULT '',
+                auto_delete_after_dispatch INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -112,6 +116,10 @@ class SQLCipherHelper(
             put("enable_battery_warnings", if (defaultConfig.enableBatteryWarnings) 1 else 0)
             put("enable_cloud_watchdog", if (defaultConfig.enableCloudWatchdog) 1 else 0)
             put("watchdog_ping_url", defaultConfig.watchdogPingUrl)
+            put("enable_biometric_lock", if (defaultConfig.enableBiometricLock) 1 else 0)
+            put("app_pin", defaultConfig.appPin)
+            put("panic_pin", defaultConfig.panicPin)
+            put("auto_delete_after_dispatch", if (defaultConfig.autoDeleteAfterDispatch) 1 else 0)
             put("created_at", defaultConfig.createdAt)
             put("updated_at", defaultConfig.updatedAt)
         }
@@ -156,13 +164,22 @@ class SQLCipherHelper(
             } catch (ignored: Exception) {
             }
         }
+        if (oldVersion < 6) {
+            try {
+                db.execSQL("ALTER TABLE app_config ADD COLUMN enable_biometric_lock INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE app_config ADD COLUMN app_pin TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE app_config ADD COLUMN panic_pin TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE app_config ADD COLUMN auto_delete_after_dispatch INTEGER NOT NULL DEFAULT 0")
+            } catch (ignored: Exception) {
+            }
+        }
     }
 
     @Synchronized
     fun getAppConfig(): DmsConfig {
         try {
             val db = readableDatabase
-            db.rawQuery("SELECT id, timer_interval_minutes, primary_dispatch_method, retry_count, is_active, language, enable_boot_recovery, enable_battery_warnings, enable_cloud_watchdog, watchdog_ping_url, grace_period_minutes, created_at, updated_at FROM app_config WHERE id = 1", null).use { cursor ->
+            db.rawQuery("SELECT id, timer_interval_minutes, primary_dispatch_method, retry_count, is_active, language, enable_boot_recovery, enable_battery_warnings, enable_cloud_watchdog, watchdog_ping_url, grace_period_minutes, enable_biometric_lock, app_pin, panic_pin, auto_delete_after_dispatch, created_at, updated_at FROM app_config WHERE id = 1", null).use { cursor ->
                 if (cursor.moveToFirst()) {
                     return DmsConfig(
                         id = cursor.getInt(0),
@@ -176,8 +193,12 @@ class SQLCipherHelper(
                         enableCloudWatchdog = cursor.getInt(8) == 1,
                         watchdogPingUrl = cursor.getString(9) ?: "",
                         gracePeriodMinutes = cursor.getLong(10),
-                        createdAt = cursor.getString(11),
-                        updatedAt = cursor.getString(12)
+                        enableBiometricLock = cursor.getInt(11) == 1,
+                        appPin = cursor.getString(12) ?: "",
+                        panicPin = cursor.getString(13) ?: "",
+                        autoDeleteAfterDispatch = cursor.getInt(14) == 1,
+                        createdAt = cursor.getString(15),
+                        updatedAt = cursor.getString(16)
                     )
                 }
             }
@@ -202,6 +223,10 @@ class SQLCipherHelper(
                 put("enable_battery_warnings", if (config.enableBatteryWarnings) 1 else 0)
                 put("enable_cloud_watchdog", if (config.enableCloudWatchdog) 1 else 0)
                 put("watchdog_ping_url", config.watchdogPingUrl)
+                put("enable_biometric_lock", if (config.enableBiometricLock) 1 else 0)
+                put("app_pin", config.appPin)
+                put("panic_pin", config.panicPin)
+                put("auto_delete_after_dispatch", if (config.autoDeleteAfterDispatch) 1 else 0)
                 put("created_at", config.createdAt)
                 put("updated_at", Instant.now().toString())
             }

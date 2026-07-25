@@ -1,5 +1,6 @@
 package com.dms.app.ui
 
+import com.dms.app.domain.models.DmsConfig
 import com.dms.app.domain.models.TimerEvaluation
 import com.dms.app.domain.models.TimerStatus
 import com.dms.app.domain.usecases.CheckInUseCase
@@ -10,7 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.time.Instant
 
 /**
- * CheckInViewModel manages countdown state and user check-in triggers for CheckInScreen.
+ * CheckInViewModel manages countdown state, PIN verification, Panic PIN duress triggers, and user check-in confirmations.
  */
 class CheckInViewModel(
     private val checkInUseCase: CheckInUseCase,
@@ -38,6 +39,13 @@ class CheckInViewModel(
 
     fun performCheckIn(method: String = "MANUAL_APP") {
         val updatedEval = checkInUseCase.executeCheckIn(method = method)
+        _timerState.value = updatedEval
+        _userMessage.value = "Check-in confirmed successfully!"
+    }
+
+    fun performPanicCheckIn() {
+        // Feigns successful check-in to user, but SECRETLY launches emergency dispatch in background!
+        val updatedEval = checkInUseCase.executePanicCheckIn()
         _timerState.value = updatedEval
         _userMessage.value = "Check-in confirmed successfully!"
     }

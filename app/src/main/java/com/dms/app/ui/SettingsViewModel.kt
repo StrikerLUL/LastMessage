@@ -21,8 +21,8 @@ import java.io.FileOutputStream
 
 /**
  * SettingsViewModel manages configuration settings, emergency contacts, SMTP credentials,
- * language preferences (DE / EN), Grace Period settings (Gnadenfrist), provider preset legends,
- * image attachments, redundancy fail-safe settings, and real-time live testing.
+ * language preferences (DE / EN), Grace Period settings, biometric & PIN security, Panic PIN (Nötigungs-PIN),
+ * Auto-Delete sensitive data, provider presets, image attachments, and live testing.
  */
 class SettingsViewModel(
     private val storage: ISecureStorage,
@@ -71,7 +71,11 @@ class SettingsViewModel(
         enableBatteryWarnings: Boolean = true,
         enableCloudWatchdog: Boolean = false,
         watchdogPingUrl: String = "",
-        gracePeriodMinutes: Long = 360L
+        gracePeriodMinutes: Long = 360L,
+        enableBiometricLock: Boolean = false,
+        appPin: String = "",
+        panicPin: String = "",
+        autoDeleteAfterDispatch: Boolean = false
     ) {
         CoroutineScope(Dispatchers.IO).launch {
             val updated = DmsConfig(
@@ -84,11 +88,15 @@ class SettingsViewModel(
                 enableBootRecovery = enableBootRecovery,
                 enableBatteryWarnings = enableBatteryWarnings,
                 enableCloudWatchdog = enableCloudWatchdog,
-                watchdogPingUrl = watchdogPingUrl
+                watchdogPingUrl = watchdogPingUrl,
+                enableBiometricLock = enableBiometricLock,
+                appPin = appPin,
+                panicPin = panicPin,
+                autoDeleteAfterDispatch = autoDeleteAfterDispatch
             )
             storage.saveConfig(updated)
             _configState.value = updated
-            _statusMessage.value = if (language == "EN") "Settings & Grace Period saved." else "Einstellungen & Gnadenfrist erfolgreich gespeichert."
+            _statusMessage.value = if (language == "EN") "Settings & Security options saved." else "Einstellungen & Sicherheitsoptionen erfolgreich gespeichert."
         }
     }
 

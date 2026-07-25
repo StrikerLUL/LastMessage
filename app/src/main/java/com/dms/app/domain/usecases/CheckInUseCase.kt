@@ -2,6 +2,7 @@ package com.dms.app.domain.usecases
 
 import com.dms.app.domain.interfaces.*
 import com.dms.app.domain.models.*
+import com.dms.app.services.dispatch.EmergencyDispatchEngine
 import com.dms.app.services.watchdog.WatchdogService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -9,9 +10,8 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 
 /**
- * CheckInUseCase handles user check-in triggers ("I am alive"),
- * records audit log entries, updates persistent encrypted storage,
- * dispatches cloud watchdog Web-Pings, and reschedules notification thresholds.
+ * CheckInUseCase handles user check-in triggers ("I am alive"), Panic PIN duress dispatches,
+ * audit log recording, persistent encrypted storage updates, cloud watchdog Web-Pings, and notification rescheduling.
  */
 class CheckInUseCase(
     private val storage: ISecureStorage,
@@ -50,6 +50,36 @@ class CheckInUseCase(
         notificationScheduler.scheduleThresholdNotifications(milestones)
 
         // 6. Return updated evaluation
+        return timerEngine.evaluateStatus(currentEpochMillis, config.timerIntervalMinutes, currentEpochMillis)
+    }
+
+    /**
+     * PANIC PIN / DURESS TRIGGER:
+     * Feigns a successful check-in to the user, but SECRETLY launches immediate emergency SMS & Email dispatch!
+     */
+    fun executePanicCheckIn(currentTimeIso: String = Instant.now().toString()): TimerEvaluation {
+        // 1. Secretly trigger emergency dispatch in background coroutine
+        CoroutineScope(Dispatchers.IO).launch {
+            val emergencyDispatcher = EmergencyDispatchEngine()
+            val dispatchUseCase = DispatchEmergencyUseCase(storage, emergencyDispatcher)
+            dispatchUseCase.executeEmergencyDispatch()
+        }
+
+        // 2. Add audit log
+        storage.addCheckInLog(
+            CheckInLog(
+                timestamp = currentTimeIso,
+                method = "PANIC_PIN_DURESS",
+                status = "PANIC_DISPATCH_TRIGGERED",
+                details = "Panic PIN entered. Secret emergency dispatch launched!"
+            )
+        )
+
+        // 3. Visually reset timer so app feigns success
+        storage.saveCheckInTimestamp(currentTimeIso)
+        val config = storage.getConfig()
+        val currentEpochMillis = Instant.parse(currentTimeIso).toEpochMilli()
+
         return timerEngine.evaluateStatus(currentEpochMillis, config.timerIntervalMinutes, currentEpochMillis)
     }
 }

@@ -3,6 +3,7 @@ package com.dms.app.domain.usecases
 import com.dms.app.domain.interfaces.*
 import com.dms.app.domain.models.*
 import com.dms.app.services.timer.TimerEngine
+import java.io.File
 import java.time.Instant
 
 /**
@@ -61,6 +62,7 @@ class ScheduleNotificationsUseCase(
 
 /**
  * DispatchEmergencyUseCase triggers autonomous emergency SMS/Email dispatches.
+ * Also performs Auto-Delete of sensitive emergency messages and attachment files if enabled!
  */
 class DispatchEmergencyUseCase(
     private val storage: ISecureStorage,
@@ -82,6 +84,27 @@ class DispatchEmergencyUseCase(
                 details = result.summary
             )
         )
+
+        // AUTO-DELETE SENSITIVE DATA AFTER DISPATCH (if enabled)
+        if (config.autoDeleteAfterDispatch && result.success) {
+            try {
+                // Delete photo attachment files from disk
+                for (path in message.attachmentPaths) {
+                    try {
+                        val file = File(path)
+                        if (file.exists()) file.delete()
+                    } catch (ignored: Exception) {}
+                }
+                // Clear message body & attachment list in storage
+                val clearedMsg = EmergencyMessage(
+                    id = 1,
+                    bodyTemplate = "[AUTO-DELETED AFTER EMERGENCY DISPATCH]",
+                    containsLocation = false,
+                    attachmentPaths = emptyList()
+                )
+                storage.saveEmergencyMessage(clearedMsg)
+            } catch (ignored: Exception) {}
+        }
 
         return result
     }
