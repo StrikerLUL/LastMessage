@@ -23,8 +23,9 @@ class CheckInViewModel(
     private val _configState = MutableStateFlow<DmsConfig>(storage.getConfig())
     val configState: StateFlow<DmsConfig> = _configState.asStateFlow()
 
+    // App is ONLY locked on startup if enableBiometricLock is explicitly turned ON!
     private val _isAppLocked = MutableStateFlow<Boolean>(
-        storage.getConfig().enableBiometricLock || storage.getConfig().appPin.isNotBlank() || storage.getConfig().panicPin.isNotBlank()
+        storage.getConfig().enableBiometricLock && (storage.getConfig().appPin.isNotBlank() || storage.getConfig().panicPin.isNotBlank())
     )
     val isAppLocked: StateFlow<Boolean> = _isAppLocked.asStateFlow()
 
@@ -45,11 +46,15 @@ class CheckInViewModel(
     fun refreshStatus() {
         val cfg = storage.getConfig()
         _configState.value = cfg
-        val shouldLock = cfg.enableBiometricLock || cfg.appPin.isNotBlank() || cfg.panicPin.isNotBlank()
-        // Re-evaluate lock status if lock enabled
-        if (shouldLock && _isAppLocked.value != false) {
+
+        // Strictest condition: Lock ONLY if enableBiometricLock is TRUE!
+        val shouldLock = cfg.enableBiometricLock && (cfg.appPin.isNotBlank() || cfg.panicPin.isNotBlank())
+        if (!cfg.enableBiometricLock) {
+            _isAppLocked.value = false
+        } else if (shouldLock && _isAppLocked.value != false) {
             _isAppLocked.value = true
         }
+
         val eval = evaluateTimerUseCase.evaluateCurrentStatus()
         _timerState.value = eval
     }

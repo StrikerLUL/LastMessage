@@ -8,6 +8,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Fingerprint
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Security
@@ -18,17 +19,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.fragment.app.FragmentActivity
 import com.dms.app.domain.models.TimerStatus
+import com.dms.app.services.security.BiometricAuthHelper
 
 /**
  * CheckInScreen UI representation and Jetpack Compose layout presenter.
- * Enforces App PIN / Biometric Lock Screen on startup, Panic PIN duress triggers,
+ * Enforces App PIN / Biometric Hardware Fingerprint Lock Screen on startup, Panic PIN duress triggers,
  * countdown timer state, status badges, and primary "I Am Alive" check-in button.
  */
 class CheckInScreen(
@@ -38,15 +42,36 @@ class CheckInScreen(
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun Content(onNavigateToSettings: () -> Unit) {
+        val context = LocalContext.current
         val timerEval by viewModel.timerState.collectAsState()
         val userMessage by viewModel.userMessage.collectAsState()
         val config by viewModel.configState.collectAsState()
         val isAppLocked by viewModel.isAppLocked.collectAsState()
 
         val isEn = config.language == "EN"
+        val biometricHelper = remember { BiometricAuthHelper(context) }
+        val isBiometricAvailable = remember { biometricHelper.isBiometricAvailable() }
 
         var startupPinInput by remember { mutableStateOf("") }
         var startupPinError by remember { mutableStateOf<String?>(null) }
+
+        // Trigger hardware biometric prompt automatically on lock screen launch
+        LaunchedEffect(isAppLocked) {
+            if (isAppLocked && isBiometricAvailable && context is FragmentActivity) {
+                biometricHelper.promptBiometricAuth(
+                    activity = context,
+                    title = if (isEn) "Unlock LastMessage" else "LastMessage Entsperren",
+                    subtitle = if (isEn) "Touch fingerprint sensor" else "Fingerabdruck-Sensor berühren",
+                    negativeButtonText = if (isEn) "Use PIN" else "PIN verwenden",
+                    onSuccess = {
+                        viewModel.unlockAppDirectly()
+                    },
+                    onError = { err ->
+                        // Biometric failed or cancelled, user can enter PIN below
+                    }
+                )
+            }
+        }
 
         // APP LOCK OVERLAY SCREEN (FULL-SCREEN LOCK)
         if (isAppLocked) {
@@ -125,7 +150,7 @@ class CheckInScreen(
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(20.dp))
 
                         Button(
                             onClick = {
@@ -154,6 +179,38 @@ class CheckInScreen(
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp
                             )
+                        }
+
+                        if (isBiometricAvailable) {
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            OutlinedButton(
+                                onClick = {
+                                    if (context is FragmentActivity) {
+                                        biometricHelper.promptBiometricAuth(
+                                            activity = context,
+                                            title = if (isEn) "Unlock LastMessage" else "LastMessage Entsperren",
+                                            subtitle = if (isEn) "Touch fingerprint sensor" else "Fingerabdruck-Sensor berühren",
+                                            negativeButtonText = if (isEn) "Use PIN" else "PIN verwenden",
+                                            onSuccess = { viewModel.unlockAppDirectly() },
+                                            onError = { err -> startupPinError = err }
+                                        )
+                                    }
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(48.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.Fingerprint, contentDescription = null, tint = Color(0xFFEA80FC))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = if (isEn) "🖐️ USE FINGERPRINT" else "🖐️ FINGERABDRUCK NUTZEN",
+                                    color = Color(0xFFEA80FC),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
                         }
                     }
                 }
