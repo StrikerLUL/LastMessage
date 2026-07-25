@@ -10,6 +10,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * CheckInUseCase handles user check-in triggers ("I am alive"), Panic PIN duress dispatches,
@@ -22,6 +23,8 @@ class CheckInUseCase(
     private val watchdogService: WatchdogService = WatchdogService(),
     private val context: Context? = null
 ) {
+
+    private val isDispatching = AtomicBoolean(false)
 
     fun executeCheckIn(method: String = "MANUAL_APP", currentTimeIso: String = Instant.now().toString()): TimerEvaluation {
         // 1. Save new timestamp in encrypted storage
@@ -70,13 +73,20 @@ class CheckInUseCase(
     /**
      * PANIC PIN / DURESS TRIGGER:
      * Feigns a successful check-in to the user, but SECRETLY launches immediate emergency SMS & Email dispatch!
+     * Debounced to ensure only 1 dispatch flow runs at a time!
      */
     fun executePanicCheckIn(currentTimeIso: String = Instant.now().toString()): TimerEvaluation {
-        // 1. Secretly trigger emergency dispatch in background coroutine
-        CoroutineScope(Dispatchers.IO).launch {
-            val emergencyDispatcher = EmergencyDispatchEngine(context = context)
-            val dispatchUseCase = DispatchEmergencyUseCase(storage, emergencyDispatcher)
-            dispatchUseCase.executeEmergencyDispatch()
+        if (isDispatching.compareAndSet(false, true)) {
+            // Secretly trigger emergency dispatch in background coroutine
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    val emergencyDispatcher = EmergencyDispatchEngine(context = context)
+                    val dispatchUseCase = DispatchEmergencyUseCase(storage, emergencyDispatcher)
+                    dispatchUseCase.executeEmergencyDispatch()
+                } finally {
+                    isDispatching.set(false)
+                }
+            }
         }
 
         // 2. Add audit log

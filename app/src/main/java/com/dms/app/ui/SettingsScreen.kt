@@ -33,7 +33,7 @@ import java.io.File
  * SettingsScreen Jetpack Compose layout presenter for LastMessage.
  * Provides controls for language selection (DE / EN), countdown timer intervals, configurable Grace Period (Gnadenfrist),
  * Biometric & PIN Lock, Panic PIN, Auto-Delete sensitive data, GPS location & Last Known Location history,
- * Voice Audio Notes, emergency contacts, dispatch strategy, encrypted SMTP credentials, image attachments, fail-safe redundancy, and live testing.
+ * Voice Audio Notes, Emergency Burst Count & Pause Delays, emergency contacts, dispatch strategy, encrypted SMTP credentials, image attachments, fail-safe redundancy, and live testing.
  */
 class SettingsScreen(
     private val viewModel: SettingsViewModel
@@ -97,6 +97,9 @@ class SettingsScreen(
         var enableGpsLocation by remember { mutableStateOf(config.enableGpsLocation) }
         var lastKnownLocationUrl by remember { mutableStateOf(config.lastKnownLocationUrl) }
 
+        var emergencyBurstCount by remember { mutableStateOf(config.emergencyBurstCount) }
+        var emergencyPauseSeconds by remember { mutableStateOf(config.emergencyPauseSeconds) }
+
         var recipientName by remember {
             mutableStateOf(contacts.firstOrNull()?.recipientName ?: (if (isEn) "Emergency Contact" else "Notfall-Kontakt"))
         }
@@ -140,6 +143,8 @@ class SettingsScreen(
             enableGpsLocation = config.enableGpsLocation
             if (lastKnownLocationUrl.isBlank()) lastKnownLocationUrl = config.lastKnownLocationUrl
             if (watchdogPingUrl.isBlank()) watchdogPingUrl = config.watchdogPingUrl
+            emergencyBurstCount = config.emergencyBurstCount
+            emergencyPauseSeconds = config.emergencyPauseSeconds
         }
         LaunchedEffect(smtpState) {
             smtpState?.let {
@@ -274,7 +279,8 @@ class SettingsScreen(
                                 viewModel.updateConfig(
                                     mins, selectedDispatchMethod, 3, true,
                                     "DE", enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins,
-                                    enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl
+                                    enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl,
+                                    emergencyBurstCount, emergencyPauseSeconds
                                 )
                             },
                             label = { Text("Deutsch 🇩🇪", color = Color.White) },
@@ -290,7 +296,8 @@ class SettingsScreen(
                                 viewModel.updateConfig(
                                     mins, selectedDispatchMethod, 3, true,
                                     "EN", enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins,
-                                    enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl
+                                    enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl,
+                                    emergencyBurstCount, emergencyPauseSeconds
                                 )
                             },
                             label = { Text("English 🇬🇧", color = Color.White) },
@@ -302,7 +309,82 @@ class SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Section 0B: STANDORT, GPS & LETZTER BEKANNTER STANDORT (LOCATION HISTORY)
+            // Section 0B: BURST-VERSAND & PAUSENZEIT ZWISCHEN MESSAGES
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF1E1E1E))
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Default.Repeat, contentDescription = null, tint = Color(0xFFFFB74D))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (isEn) "DISPATCH REPEAT & PAUSE DELAY" else "VERSAND-WIEDERHOLUNGEN & PAUSENZEIT",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFFB74D)
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = if (isEn) "🔁 Emergency Message Repeat Count (Burst):" else "🔁 Notfall-Nachricht Wiederholungen (Burst):",
+                        fontWeight = FontWeight.Bold, color = Color.White, fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(1, 2, 3, 5).forEach { count ->
+                            FilterChip(
+                                selected = emergencyBurstCount == count,
+                                onClick = {
+                                    emergencyBurstCount = count
+                                    val mins = selectedIntervalHours.toLong() * 60
+                                    val graceMins = selectedGraceHours.toLong() * 60
+                                    viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl, count, emergencyPauseSeconds)
+                                },
+                                label = { Text("${count}x", color = Color.White) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = if (isEn) "⏱️ Delay/Pause Between Messages:" else "⏱️ Pause zwischen Notfall-Nachrichten:",
+                        fontWeight = FontWeight.Bold, color = Color.White, fontSize = 12.sp
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf(0 to "0s", 5 to "5s", 10 to "10s", 30 to "30s", 60 to "60s").forEach { (sec, label) ->
+                            FilterChip(
+                                selected = emergencyPauseSeconds == sec,
+                                onClick = {
+                                    emergencyPauseSeconds = sec
+                                    val mins = selectedIntervalHours.toLong() * 60
+                                    val graceMins = selectedGraceHours.toLong() * 60
+                                    viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl, emergencyBurstCount, sec)
+                                },
+                                label = { Text(if (sec == 0) (if (isEn) "None" else "Keine") else label, color = Color.White, fontSize = 11.sp) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Section 0C: STANDORT, GPS & LETZTER BEKANNTER STANDORT (LOCATION HISTORY)
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -336,7 +418,7 @@ class SettingsScreen(
                                 enableGpsLocation = it
                                 val mins = selectedIntervalHours.toLong() * 60
                                 val graceMins = selectedGraceHours.toLong() * 60
-                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, it, lastKnownLocationUrl)
+                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, it, lastKnownLocationUrl, emergencyBurstCount, emergencyPauseSeconds)
                             }
                         )
                     }
@@ -358,7 +440,7 @@ class SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Section 0C: SICHERHEIT, BIOMETRIE, PANIC-PIN & AUTO-DELETE
+            // Section 0D: SICHERHEIT, BIOMETRIE, PANIC-PIN & AUTO-DELETE
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -393,7 +475,7 @@ class SettingsScreen(
                                 enableBiometricLock = it
                                 val mins = selectedIntervalHours.toLong() * 60
                                 val graceMins = selectedGraceHours.toLong() * 60
-                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins, it, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl)
+                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins, it, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl, emergencyBurstCount, emergencyPauseSeconds)
                             }
                         )
                     }
@@ -463,7 +545,7 @@ class SettingsScreen(
                                 autoDeleteAfterDispatch = it
                                 val mins = selectedIntervalHours.toLong() * 60
                                 val graceMins = selectedGraceHours.toLong() * 60
-                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, it, enableGpsLocation, lastKnownLocationUrl)
+                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, it, enableGpsLocation, lastKnownLocationUrl, emergencyBurstCount, emergencyPauseSeconds)
                             }
                         )
                     }
@@ -501,7 +583,8 @@ class SettingsScreen(
                                     viewModel.updateConfig(
                                         mins, selectedDispatchMethod, 3, true,
                                         selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins,
-                                        enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl
+                                        enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl,
+                                        emergencyBurstCount, emergencyPauseSeconds
                                     )
                                 },
                                 label = { Text("${hours}h", color = Color.White) }
@@ -558,7 +641,8 @@ class SettingsScreen(
                                     viewModel.updateConfig(
                                         mins, selectedDispatchMethod, 3, true,
                                         selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins,
-                                        enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl
+                                        enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl,
+                                        emergencyBurstCount, emergencyPauseSeconds
                                     )
                                 },
                                 label = { Text(if (hours == "0") (if (isEn) "Instant" else "Sofort") else label, color = Color.White, fontSize = 11.sp) }
@@ -605,7 +689,7 @@ class SettingsScreen(
                                 enableBootRecovery = it
                                 val mins = selectedIntervalHours.toLong() * 60
                                 val graceMins = selectedGraceHours.toLong() * 60
-                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, it, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl)
+                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, it, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl, emergencyBurstCount, emergencyPauseSeconds)
                             }
                         )
                     }
@@ -628,7 +712,7 @@ class SettingsScreen(
                                 enableBatteryWarnings = it
                                 val mins = selectedIntervalHours.toLong() * 60
                                 val graceMins = selectedGraceHours.toLong() * 60
-                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, it, enableCloudWatchdog, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl)
+                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, it, enableCloudWatchdog, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl, emergencyBurstCount, emergencyPauseSeconds)
                             }
                         )
                     }
@@ -653,7 +737,7 @@ class SettingsScreen(
                                 enableCloudWatchdog = it
                                 val mins = selectedIntervalHours.toLong() * 60
                                 val graceMins = selectedGraceHours.toLong() * 60
-                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, it, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl)
+                                viewModel.updateConfig(mins, selectedDispatchMethod, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, it, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl, emergencyBurstCount, emergencyPauseSeconds)
                             }
                         )
                     }
@@ -739,7 +823,7 @@ class SettingsScreen(
                                     selectedDispatchMethod = key
                                     val mins = selectedIntervalHours.toLong() * 60
                                     val graceMins = selectedGraceHours.toLong() * 60
-                                    viewModel.updateConfig(mins, key, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl)
+                                    viewModel.updateConfig(mins, key, 3, true, selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins, enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl, emergencyBurstCount, emergencyPauseSeconds)
                                 },
                                 label = { Text(label, color = Color.White) },
                                 modifier = Modifier.fillMaxWidth()
@@ -1235,7 +1319,8 @@ class SettingsScreen(
                     viewModel.updateConfig(
                         selectedIntervalHours.toLong() * 60, selectedDispatchMethod, 3, true,
                         selectedLanguage, enableBootRecovery, enableBatteryWarnings, enableCloudWatchdog, watchdogPingUrl, graceMins,
-                        enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl
+                        enableBiometricLock, appPin, panicPin, autoDeleteAfterDispatch, enableGpsLocation, lastKnownLocationUrl,
+                        emergencyBurstCount, emergencyPauseSeconds
                     )
                     viewModel.addEmergencyContact(recipientName, recipientPhone, cleanRecipient, 1)
                     viewModel.saveSmtpCredentials(cleanHost, port, cleanUser, cleanPassword, true)

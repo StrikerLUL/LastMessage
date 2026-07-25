@@ -14,7 +14,7 @@ import java.time.Instant
 class SQLCipherHelper(
     context: Context? = null,
     dbName: String = "dms_app.db"
-) : SQLiteOpenHelper(context, dbName, null, 7) {
+) : SQLiteOpenHelper(context, dbName, null, 8) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -37,6 +37,8 @@ class SQLCipherHelper(
                 auto_delete_after_dispatch INTEGER NOT NULL DEFAULT 0,
                 enable_gps_location INTEGER NOT NULL DEFAULT 0,
                 last_known_location_url TEXT NOT NULL DEFAULT '',
+                emergency_burst_count INTEGER NOT NULL DEFAULT 1,
+                emergency_pause_seconds INTEGER NOT NULL DEFAULT 0,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             );
@@ -125,6 +127,8 @@ class SQLCipherHelper(
             put("auto_delete_after_dispatch", if (defaultConfig.autoDeleteAfterDispatch) 1 else 0)
             put("enable_gps_location", if (defaultConfig.enableGpsLocation) 1 else 0)
             put("last_known_location_url", defaultConfig.lastKnownLocationUrl)
+            put("emergency_burst_count", defaultConfig.emergencyBurstCount)
+            put("emergency_pause_seconds", defaultConfig.emergencyPauseSeconds)
             put("created_at", defaultConfig.createdAt)
             put("updated_at", defaultConfig.updatedAt)
         }
@@ -187,13 +191,20 @@ class SQLCipherHelper(
             } catch (ignored: Exception) {
             }
         }
+        if (oldVersion < 8) {
+            try {
+                db.execSQL("ALTER TABLE app_config ADD COLUMN emergency_burst_count INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE app_config ADD COLUMN emergency_pause_seconds INTEGER NOT NULL DEFAULT 0")
+            } catch (ignored: Exception) {
+            }
+        }
     }
 
     @Synchronized
     fun getAppConfig(): DmsConfig {
         try {
             val db = readableDatabase
-            db.rawQuery("SELECT id, timer_interval_minutes, primary_dispatch_method, retry_count, is_active, language, enable_boot_recovery, enable_battery_warnings, enable_cloud_watchdog, watchdog_ping_url, grace_period_minutes, enable_biometric_lock, app_pin, panic_pin, auto_delete_after_dispatch, enable_gps_location, last_known_location_url, created_at, updated_at FROM app_config WHERE id = 1", null).use { cursor ->
+            db.rawQuery("SELECT id, timer_interval_minutes, primary_dispatch_method, retry_count, is_active, language, enable_boot_recovery, enable_battery_warnings, enable_cloud_watchdog, watchdog_ping_url, grace_period_minutes, enable_biometric_lock, app_pin, panic_pin, auto_delete_after_dispatch, enable_gps_location, last_known_location_url, emergency_burst_count, emergency_pause_seconds, created_at, updated_at FROM app_config WHERE id = 1", null).use { cursor ->
                 if (cursor.moveToFirst()) {
                     return DmsConfig(
                         id = cursor.getInt(0),
@@ -213,8 +224,10 @@ class SQLCipherHelper(
                         autoDeleteAfterDispatch = cursor.getInt(14) == 1,
                         enableGpsLocation = cursor.getInt(15) == 1,
                         lastKnownLocationUrl = cursor.getString(16) ?: "",
-                        createdAt = cursor.getString(17),
-                        updatedAt = cursor.getString(18)
+                        emergencyBurstCount = cursor.getInt(17),
+                        emergencyPauseSeconds = cursor.getInt(18),
+                        createdAt = cursor.getString(19),
+                        updatedAt = cursor.getString(20)
                     )
                 }
             }
@@ -245,6 +258,8 @@ class SQLCipherHelper(
                 put("auto_delete_after_dispatch", if (config.autoDeleteAfterDispatch) 1 else 0)
                 put("enable_gps_location", if (config.enableGpsLocation) 1 else 0)
                 put("last_known_location_url", config.lastKnownLocationUrl)
+                put("emergency_burst_count", config.emergencyBurstCount)
+                put("emergency_pause_seconds", config.emergencyPauseSeconds)
                 put("created_at", config.createdAt)
                 put("updated_at", Instant.now().toString())
             }

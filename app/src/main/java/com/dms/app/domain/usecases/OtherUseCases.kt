@@ -62,6 +62,7 @@ class ScheduleNotificationsUseCase(
 
 /**
  * DispatchEmergencyUseCase triggers autonomous emergency SMS/Email dispatches.
+ * Respects user-configured emergencyBurstCount and emergencyPauseSeconds!
  * Performs thorough Auto-Delete of sensitive emergency message text, photos, and voice notes if enabled!
  */
 class DispatchEmergencyUseCase(
@@ -74,23 +75,39 @@ class DispatchEmergencyUseCase(
         val smtp = storage.getSmtpCredentials()
         val message = storage.getEmergencyMessage()
 
-        val result = emergencyDispatcher.triggerEmergencyDispatch(config, message, contacts, smtp)
+        val burstCount = config.emergencyBurstCount.coerceIn(1, 5)
+        val pauseSeconds = config.emergencyPauseSeconds.coerceIn(0, 60)
+
+        var lastResult = DispatchResult(
+            success = false,
+            summary = "No dispatches performed"
+        )
+
+        for (i in 1..burstCount) {
+            lastResult = emergencyDispatcher.triggerEmergencyDispatch(config, message, contacts, smtp)
+
+            if (i < burstCount && pauseSeconds > 0) {
+                try {
+                    Thread.sleep(pauseSeconds * 1000L)
+                } catch (ignored: Exception) {}
+            }
+        }
 
         storage.addCheckInLog(
             CheckInLog(
                 timestamp = Instant.now().toString(),
                 method = "SYSTEM_AUTO",
-                status = if (result.success) "DISPATCH_TRIGGERED" else "DISPATCH_FAILED",
-                details = result.summary
+                status = if (lastResult.success) "DISPATCH_TRIGGERED" else "DISPATCH_FAILED",
+                details = "${lastResult.summary} (Burst: ${burstCount}x, Delay: ${pauseSeconds}s)"
             )
         )
 
         // AUTO-DELETE SENSITIVE DATA AFTER DISPATCH (if enabled)
-        if (config.autoDeleteAfterDispatch && result.success) {
+        if (config.autoDeleteAfterDispatch && lastResult.success) {
             purgeSensitiveEmergencyData(config.language)
         }
 
-        return result
+        return lastResult
     }
 
     /**

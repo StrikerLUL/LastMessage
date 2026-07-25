@@ -24,7 +24,7 @@ import java.io.FileOutputStream
 /**
  * SettingsViewModel manages configuration settings, emergency contacts, SMTP credentials,
  * language preferences (DE / EN), Grace Period settings, biometric & PIN security, Panic PIN,
- * Auto-Delete sensitive data, GPS location settings, voice audio notes, provider presets, image attachments, and live testing.
+ * Auto-Delete sensitive data, GPS location settings, voice audio notes, burst dispatch counts, pause delays, provider presets, image attachments, and live testing.
  */
 class SettingsViewModel(
     private val storage: ISecureStorage,
@@ -79,7 +79,9 @@ class SettingsViewModel(
         panicPin: String = "",
         autoDeleteAfterDispatch: Boolean = false,
         enableGpsLocation: Boolean = false,
-        lastKnownLocationUrl: String = ""
+        lastKnownLocationUrl: String = "",
+        emergencyBurstCount: Int = 1,
+        emergencyPauseSeconds: Int = 0
     ) {
         CoroutineScope(Dispatchers.IO).launch {
             val updated = DmsConfig(
@@ -98,11 +100,13 @@ class SettingsViewModel(
                 panicPin = panicPin,
                 autoDeleteAfterDispatch = autoDeleteAfterDispatch,
                 enableGpsLocation = enableGpsLocation,
-                lastKnownLocationUrl = lastKnownLocationUrl
+                lastKnownLocationUrl = lastKnownLocationUrl,
+                emergencyBurstCount = emergencyBurstCount,
+                emergencyPauseSeconds = emergencyPauseSeconds
             )
             storage.saveConfig(updated)
             _configState.value = updated
-            _statusMessage.value = if (language == "EN") "Settings & Auto-Delete saved." else "Einstellungen & Auto-Löschen erfolgreich gespeichert."
+            _statusMessage.value = if (language == "EN") "Settings, burst count & delay saved." else "Einstellungen, Notfall-Wiederholungen & Pausenzeit gespeichert."
         }
     }
 

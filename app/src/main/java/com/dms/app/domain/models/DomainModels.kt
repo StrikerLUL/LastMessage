@@ -4,7 +4,8 @@ import java.time.Instant
 
 /**
  * Global application timer intervals, dispatch preferences, language settings,
- * grace period settings, biometric/PIN security settings, Panic PIN, auto-delete, GPS location settings, and fail-safe redundancy settings.
+ * grace period settings, biometric/PIN security settings, Panic PIN, auto-delete,
+ * GPS location settings, burst dispatch counts, pause delays, and fail-safe redundancy settings.
  */
 data class DmsConfig(
     val id: Int = 1,
@@ -24,6 +25,8 @@ data class DmsConfig(
     val autoDeleteAfterDispatch: Boolean = false, // Auto-delete sensitive message body & image attachments after dispatch!
     val enableGpsLocation: Boolean = false, // Optional GPS location appending in emergency SMS/Email!
     val lastKnownLocationUrl: String = "", // Saved Google Maps location URL recorded at last check-in!
+    val emergencyBurstCount: Int = 1, // Configurable number of times emergency dispatch repeats (1..5)!
+    val emergencyPauseSeconds: Int = 0, // Configurable delay in seconds between burst dispatches (0..60s)!
     val createdAt: String = Instant.now().toString(),
     val updatedAt: String = Instant.now().toString()
 ) {
